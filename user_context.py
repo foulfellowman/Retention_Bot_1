@@ -1,0 +1,144 @@
+from typing import Dict, List, Optional
+
+from db import DB
+from fsm import IntentionFlow
+
+
+class UserContext:
+    def __init__(self, phone_number: str):
+        self.phone_number = phone_number
+        self.twilio_data: Dict[str, Optional[str]] = {
+            "last_sid": None,
+            "last_message": None
+        }
+        self.gpt_history: List[Dict[str, str]] = []  # [{role: ..., content: ...}]
+        self.user_data: Dict[str, Optional[str]] = {
+            "name": None,
+            "previous_services": None,
+            "days_since_cancelled": None,
+            "last_service": None
+        }
+        self._phone_number = phone_number
+        self._ensure_phone_in_db()
+        self.fsm = IntentionFlow(name=phone_number)
+
+    def trigger_event(self, event_name: str, verbose=False, **kwargs):
+        """
+        Trigger an FSM event if it exists.
+        event_name should match the trigger name in IntentionFlow.
+        Example: 'receive_positive_response', 'go_to_sqft', etc.
+        """
+        if hasattr(self.fsm, event_name):
+            trigger_fn = getattr(self.fsm, event_name)
+            if verbose:
+                print('Event Triggered: ', event_name)
+            trigger_fn(**kwargs)
+            return True
+        else:
+            raise ValueError(f"No FSM trigger named '{event_name}'")
+
+    def get_fsm_snapshot(self) -> dict:
+        return self.fsm.snapshot()
+
+    def change_state_from_intent(self, intent: str, **kwargs):
+        """
+        Map a high-level intent string to an FSM trigger.
+        """
+        intent_map = {
+            "yes": "receive_positive_response",
+            "no": "receive_negative_response",
+            "stop": "user_stopped",
+            "confused": "retry_confused",
+            "resume": "resume_flow",
+            "sqft_ready": "go_to_sqft",
+            "followup": "receive_followup",
+            "complete": "complete_flow",
+        }
+
+        trigger = intent_map.get(intent)
+        if not trigger:
+            raise ValueError(f"No trigger mapped for intent '{intent}'")
+
+        return self.trigger_event(trigger, **kwargs)
+
+    def get_current_state(self) -> str:
+        """
+        Return the FSM's current state name.
+        """
+        return self.fsm.state
+
+    def _ensure_phone_in_db(self):
+        db_connection = DB()
+        cur = db_connection.conn.cursor()
+
+        cur.execute("SELECT 1 FROM phone WHERE phone_number = %s", (self._phone_number,))
+        if not cur.fetchone():
+            cur.execute("INSERT INTO phone (phone_number) VALUES (%s)", (self._phone_number,))
+            db_connection.conn.commit()
+        cur.close()
+        db_connection.close()
+
+    # -------- TWILIO --------
+    def set_twilio_sid(self, sid: str):
+        self.twilio_data["last_sid"] = sid
+
+    def set_twilio_message(self, message: str):
+        self.twilio_data["last_message"] = message
+
+    def get_twilio_data(self) -> Dict[str, Optional[str]]:
+        return self.twilio_data
+
+    # -------- OPENAI / GPT --------
+    def add_gpt_message(self, role: str, content: str):
+        self.gpt_history.append({"role": role, "content": content})
+
+    def get_gpt_history(self) -> List[Dict[str, str]]:
+        return self.gpt_history
+
+    def clear_gpt_history(self):
+        self.gpt_history = []
+
+    # -------- USER DATA --------
+    def set_user_info(self, name: str, services: List[str], days_since: int, last_service: str):
+        self.user_data["name"] = name
+        self.user_data["previous_services"] = ", ".join(services)
+        self.user_data["days_since_cancelled"] = str(days_since)
+        self.user_data["last_service"] = last_service
+
+    def get_user_context_string(self) -> str:
+        return (
+            f"Customer name: {self.user_data['name']}\n"
+            f"Previous services: {self.user_data['previous_services']}\n"
+            f"Days since cancellation: {self.user_data['days_since_cancelled']}\n"
+            f"Last service: {self.user_data['last_service']}"
+        )
+
+    def turn_into_gpt_context(self, incoming_sms: str) -> List[Dict[str, str]]:
+        context = self.get_user_context_string()
+        return [{"role": "user", "content": f"{context}\n\nCustomer says: {incoming_sms}"}]
+
+    def get_user_data(self) -> Dict[str, Optional[str]]:
+        return self.user_data
+
+    def reply_for_state(self, snap: dict) -> str:
+        state = snap.get("flow_state", "start")
+        if state == "start":
+            return "Hey! Quick check-in—are you still seeing any pest activity?"
+        if state == "interested":
+            return "Great—roughly how many square feet is the area you want serviced?"
+        if state == "action_sqft":
+            return "Please let me know the square footage of your property."
+        if state == "follow_up":
+            return "Thanks I’ve noted those details. We will reach out with a booking"
+        if state == "done":
+            return "All set—thanks! We will reach out if anything is needed"
+        if state == "not_interested":
+            return "Thank you, no problem. Bye"
+        if state == "pause":
+            return "Let’s pause for now. Ping me 'resume' when you’re ready."
+        if state == "stop":
+            return "You’re opted out"
+        if state == "confused":
+            count = snap.get("confused_count", 0)
+            return f"Sorry—could you clarify?"
+        return "I didn’t catch that—mind rephrasing?"

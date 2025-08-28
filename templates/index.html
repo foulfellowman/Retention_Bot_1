@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Atomic Retention Bot Console</title>
+    <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+    <script>
+      function closeModal() {
+        document.getElementById('modal-container').innerHTML = "";
+      }
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        header, footer {
+            background: #f2f2f2;
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .console-container {
+            display: flex;
+            height: calc(100vh - 100px);
+        }
+
+        .conversation-list {
+            width: 40%;
+            border-right: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .search-bar {
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .search-bar input {
+            flex: 1;
+            padding: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .chat-pane {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .messages {
+            flex: 1;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+            padding: 10px;
+            overflow-y: auto;
+            background: #fafafa;
+        }
+        .message {
+          display: flex;
+          margin-bottom: 10px;
+        }
+
+        .message.left {
+          justify-content: flex-start;
+        }
+
+        .message.right {
+          justify-content: flex-end;
+        }
+
+        .bubble {
+          padding: 10px 15px;
+          border-radius: 12px;
+          max-width: 70%;
+        }
+
+        .bubble.user {
+          background-color: #d4f5c9; /* green */
+        }
+
+        .bubble.bot {
+          background-color: #cde0ff; /* blue */
+        }
+
+
+        footer {
+            font-size: 12px;
+        }
+
+        .edit-btn {
+            font-size: 0.8em;
+            padding: 4px 8px;
+        }
+
+         #modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        }
+
+          .modal-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+          }
+
+          #modal-content {
+            position: relative;
+            max-width: 600px;
+            margin: 10% auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            z-index: 1001;
+          }
+    </style>
+</head>
+<body>
+
+    <header style="display: flex; justify-content: space-between; align-items: center; padding: 10px;">
+        <!-- Left side: logo/title -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="/static/logo.png" alt="Atomic Pest Control" height="30">
+            <strong>Atomic Retention Bot Console</strong>
+        </div>
+
+        <!-- Right side: user + gear -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+            {% if user_is_logged_in %}
+                <span>Atomic User</span>
+            {% endif %}
+            <a
+              hx-get="/settings-modal"
+              hx-target="#modal-container"
+              hx-swap="innerHTML">
+              <img src="{{ url_for('static', filename='gear-icon.png') }}" alt="Settings" width="24">
+            </a>
+        </div>
+    </header>
+
+    <div class="console-container">
+        <!-- Left panel: Conversation List -->
+        <div class="conversation-list">
+            <div class="search-bar">
+                <input type="text" placeholder="Search">
+                <button>🔍</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name | Number</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Ryan Cost<br>480293</td>
+                        <td>Converted</td>
+                        <td><button class="edit-btn">edit</button></td>
+                    </tr>
+                    <tr>
+                        <td>Sam<br>5551234</td>
+                        <td>Stop</td>
+                        <td><button class="edit-btn">edit</button></td>
+                    </tr>
+                    <tr>
+                        <td>Phil<br>5551234</td>
+                        <td>Waiting</td>
+                        <td><button class="edit-btn">edit</button></td>
+                    </tr>
+                    <tr>
+                        <td>Edmon<br>5551234</td>
+                        <td>Waiting</td>
+                        <td><button class="edit-btn">edit</button></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="padding: 10px;">35 Conversations</div>
+        </div>
+
+        <!-- Right panel: Chat Viewer -->
+        <div class="chat-pane">
+            <div class="chat-header">
+                <h3>Phil 5551234</h3>
+                <button>Export this conversation</button>
+            </div>
+            <div class="messages">
+                <div class="message left">
+                  <div class="bubble user">
+                    Hi there!<br><small>12:00pm</small>
+                  </div>
+                </div>
+                <div class="message right">
+                  <div class="bubble bot">
+                    Hello!<br><small>12:28pm</small>
+                  </div>
+                </div>
+                <div class="message left">
+                  <div class="bubble user">
+                    Hi there!<br><small>12:26pm</small>
+                  </div>
+                </div>
+                <div class="message right">
+                  <div class="bubble bot">
+                    ok!<br><small>1:00pm</small>
+                  </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <footer>
+        Name: Phil Eddy | CustomerID: 134234155 | Phone Number: 5551234 | Primary Address: 8389123 N Jump Drive | Last Message Date: 7/8/2025
+    </footer>
+
+    <!-- At bottom of <body> -->
+    <div id="modal-container"></div>
+
+</body>
+</html>

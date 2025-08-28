@@ -1,0 +1,11 @@
+base_prompt = None
+incoming_sms = "2 things, whats in your termite solution, also i wasnt able to change my billing information"
+context = f"""
+Customer name: Sarah
+Previous services: Rodent Control, Termite Treatment
+Days since cancellation: 93
+Last service: Termite Treatment
+
+Use this information to personalize the response and encourage them to return to CleanPest Pro.
+"""
+max_tokens = 300
