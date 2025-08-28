@@ -216,3 +216,10 @@ base_prompt.txt
 OPENAI_TOOLS_JSON.json
 .env
 test_twilio.json
+
+# Codex (OpenAI / local agent artifacts)
+.codex/
+codex/
+*.codex
+codex_logs/
+codex_cache/
