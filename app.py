@@ -14,6 +14,7 @@ from user_context import UserContext
 # ----------------------------
 # App factory & wiring
 # ----------------------------
+
 def create_app() -> Flask:
     load_dotenv()
     app = Flask(__name__)
@@ -147,11 +148,61 @@ def create_app() -> Flask:
         # Return a simple 200 OK to Twilio (we already replied via REST)
         return "OK", 200
 
-    @app.route("/")
+    @app.route('/')
     def index():
-        # Optional: quick memory print on home for manual checks
-        print_memory_usage()
-        return render_template("index.html")
+        user = get_current_user()
+        db = DB()
+        try:
+            conversations = db.fetch_conversations(q=request.args.get('q'))
+            selected_phone = conversations[0]['phone_number'] if conversations else None
+            messages = db.SQL_full_conversation_per_phone(selected_phone) if selected_phone else []
+            return render_template(
+                'index.html',
+                conversations=conversations,
+                selected_phone=selected_phone,
+                conversations_count=len(conversations),
+                messages=messages,
+                user_is_logged_in=bool(user),
+            )
+        finally:
+            db.close()
+
+    @app.route('/conversations')
+    def conversations_list():
+        q = request.args.get('q')
+        db = DB()
+        try:
+            conversations = db.fetch_conversations(q=q if q else None)
+            # Either render a partial tbody, or return JSON
+            return render_template('partials/conversations_tbody.html', conversations=conversations,
+                                   conversations_count=len(conversations))
+        finally:
+            db.close()
+
+    @app.route('/conversations/<phone>')
+    def conversation_view(phone):
+        db = DB()
+        try:
+            messages = db.SQL_full_conversation_per_phone(phone)
+            return render_template('partials/conversation_view.html',
+                                   selected_phone=phone, messages=messages)
+        finally:
+            db.close()
+
+    @app.route('/conversations/<phone>/export')
+    def conversation_export(phone):
+        db = DB()
+        try:
+            messages = db.SQL_full_conversation_per_phone(phone)
+            lines = [f"[{m['sent_at']:%Y-%m-%d %H:%M}] {m['role']}: {m['content']}"
+                     for m in messages]
+            txt = "\n".join(lines)
+            return current_app.response_class(
+                txt, mimetype='text/plain',
+                headers={'Content-Disposition': f'attachment; filename={phone}.txt'}
+            )
+        finally:
+            db.close()
 
     return app
 

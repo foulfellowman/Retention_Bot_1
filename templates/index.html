@@ -166,8 +166,10 @@
         <!-- Left panel: Conversation List -->
         <div class="conversation-list">
             <div class="search-bar">
-                <input type="text" placeholder="Search">
-                <button>🔍</button>
+                <input id="search" type="text" placeholder="Search"
+                       hx-get="/conversations" hx-target="#conversations-body" hx-trigger="keyup changed delay:300ms"
+                       name="q">
+                <input id="search-input" type="text" placeholder="Search by name or number" onkeyup="filterConversations()">
             </div>
             <table>
                 <thead>
@@ -177,63 +179,18 @@
                         <th></th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td>Ryan Cost<br>480293</td>
-                        <td>Converted</td>
-                        <td><button class="edit-btn">edit</button></td>
-                    </tr>
-                    <tr>
-                        <td>Sam<br>5551234</td>
-                        <td>Stop</td>
-                        <td><button class="edit-btn">edit</button></td>
-                    </tr>
-                    <tr>
-                        <td>Phil<br>5551234</td>
-                        <td>Waiting</td>
-                        <td><button class="edit-btn">edit</button></td>
-                    </tr>
-                    <tr>
-                        <td>Edmon<br>5551234</td>
-                        <td>Waiting</td>
-                        <td><button class="edit-btn">edit</button></td>
-                    </tr>
-                </tbody>
+                {% include "partials/conversations_tbody.html" %}
             </table>
-            <div style="padding: 10px;">35 Conversations</div>
+            <div id="conv-count" style="padding:10px;">
+              {{ conversations|length }} Conversation{{ '' if (conversations|length) == 1 else 's' }}
+            </div>
         </div>
 
         <!-- Right panel: Chat Viewer -->
-        <div class="chat-pane">
-            <div class="chat-header">
-                <h3>Phil 5551234</h3>
-                <button>Export this conversation</button>
-            </div>
-            <div class="messages">
-                <div class="message left">
-                  <div class="bubble user">
-                    Hi there!<br><small>12:00pm</small>
-                  </div>
-                </div>
-                <div class="message right">
-                  <div class="bubble bot">
-                    Hello!<br><small>12:28pm</small>
-                  </div>
-                </div>
-                <div class="message left">
-                  <div class="bubble user">
-                    Hi there!<br><small>12:26pm</small>
-                  </div>
-                </div>
-                <div class="message right">
-                  <div class="bubble bot">
-                    ok!<br><small>1:00pm</small>
-                  </div>
-                </div>
-            </div>
+        <div id="chat-pane" class="chat-pane">
+            {% include "partials/conversation_view.html" %}
         </div>
     </div>
-
 
     <footer>
         Name: Phil Eddy | CustomerID: 134234155 | Phone Number: 5551234 | Primary Address: 8389123 N Jump Drive | Last Message Date: 7/8/2025

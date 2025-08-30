@@ -1,0 +1,19 @@
+<div id="chat-pane" class="chat-pane">
+  <div class="chat-header">
+    <h3>{{ selected_phone }}</h3>
+    <a href="/conversations/{{ selected_phone }}/export">Export this conversation</a>
+  </div>
+  <div class="messages">
+    {% for m in messages %}
+      <div class="message {{ 'left' if m.role == 'user' else 'right' }}">
+        <div class="bubble {{ 'user' if m.role == 'user' else 'bot' }}">
+          {{ m.content }}<br>
+          <small>{{ m.sent_at }}</small>
+        </div>
+      </div>
+    {% endfor %}
+    {% if not messages %}
+      <div class="message"><div class="bubble">No messages yet.</div></div>
+    {% endif %}
+  </div>
+</div>

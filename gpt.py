@@ -194,7 +194,7 @@ class GPTClient:
             # Otherwise: FORCE template reply as a safe fallback
             data = json.loads(tool_get_fsm_reply(user))
             reply = data["reply"]
-            self._context.append({"role": "assistant", "content": reply})
+            # self._context.append({"role": "assistant", "content": reply}) # DOUBLE MESSAGE ISSUE
             self.insert_with_db_instance(db_instance, reply, user)
             return reply
 
