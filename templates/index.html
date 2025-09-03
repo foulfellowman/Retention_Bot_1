@@ -10,28 +10,34 @@
       }
     </script>
     <style>
+        html, body { height: 100%; }
         body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
+          display: flex;
+          flex-direction: column;
+          min-height: 100vh;
+          margin: 0;
         }
 
-        header, footer {
-            background: #f2f2f2;
-            padding: 10px;
-            border-bottom: 1px solid #ccc;
-        }
+
+        /* Top and bottom are normal height; center fills the rest */
+        header, footer { flex: 0 0 auto; }
+
 
         .console-container {
-            display: flex;
-            height: calc(100vh - 100px);
+          flex: 1 1 auto;     /* take remaining height */
+          min-height: 0;      /* allow children to shrink for scrolling */
+          display: flex;
+          overflow: hidden;   /* keep children from bleeding under footer */
         }
 
+
+        /* Left panel */
         .conversation-list {
-            width: 40%;
-            border-right: 1px solid #ccc;
-            display: flex;
-            flex-direction: column;
+          flex: 0 0 40%;      /* 40% width, fixed basis */
+          border-right: 1px solid #ccc;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
         }
 
         .search-bar {
@@ -56,20 +62,26 @@
             padding: 8px;
             border-bottom: 1px solid #eee;
         }
+        .conversations-body {
+          width: 40%;
+          border-right: 1px solid #ccc;
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+        }
+        .list-scroll {
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow: auto;     /* left list scrolls */
+        }
 
+        /* Right panel */
         .chat-pane {
-            flex: 1;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
+          flex: 1 1 auto;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
         }
-
-        .chat-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
         .messages {
             flex: 1;
             border: 1px solid #ccc;
@@ -78,6 +90,14 @@
             overflow-y: auto;
             background: #fafafa;
         }
+
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+
         .message {
           display: flex;
           margin-bottom: 10px;
@@ -176,18 +196,20 @@
                        hx-get="/conversations" hx-target="#conversations-body" hx-trigger="keyup changed delay:300ms"
                        name="q">
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name | Number</th>
-                        <th>Status</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="conversations-body">
-                  {% include "partials/conversations_tbody_inner.html" %}
-                </tbody>
-            </table>
+            <div class="list-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name | Number</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="conversations-body">
+                      {% include "partials/conversations_tbody_inner.html" %}
+                    </tbody>
+                </table>
+            </div>
             <div id="conv-count" style="padding:10px;">
               {{ conversations|length }} Conversation{{ '' if (conversations|length) == 1 else 's' }}
             </div>
