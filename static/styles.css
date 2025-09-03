@@ -1,0 +1,153 @@
+html, body { height: 100%; }
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  margin: 0;
+}
+
+
+/* Top and bottom are normal height; center fills the rest */
+header, footer { flex: 0 0 auto; }
+
+
+.console-container {
+  flex: 1 1 auto;     /* take remaining height */
+  min-height: 0;      /* allow children to shrink for scrolling */
+  display: flex;
+  overflow: hidden;   /* keep children from bleeding under footer */
+}
+
+
+/* Left panel */
+.conversation-list {
+  flex: 0 0 40%;      /* 40% width, fixed basis */
+  border-right: 1px solid #ccc;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.search-bar {
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.search-bar input {
+    flex: 1;
+    padding: 5px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+}
+.conversations-body {
+  width: 40%;
+  border-right: 1px solid #ccc;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.list-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;     /* left list scrolls */
+}
+
+/* Right panel */
+.chat-pane {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.messages {
+    flex: 1;
+    border: 1px solid #ccc;
+    margin-top: 10px;
+    padding: 10px;
+    overflow-y: auto;
+    background: #fafafa;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+
+.message {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.message.left {
+  justify-content: flex-start;
+}
+
+.message.right {
+  justify-content: flex-end;
+}
+
+.bubble {
+  padding: 10px 15px;
+  border-radius: 12px;
+  max-width: 70%;
+}
+
+.bubble.user {
+  background-color: #d4f5c9; /* green */
+}
+
+.bubble.bot {
+  background-color: #cde0ff; /* blue */
+}
+
+
+footer {
+    font-size: 12px;
+}
+
+.edit-btn {
+    font-size: 0.8em;
+    padding: 4px 8px;
+}
+
+tr.active {
+  background-color: #f0f0f0; /* light gray */
+}
+active {
+  background-color: #f0f0f0; /* light gray */
+}
+ #modal-backdrop {
+position: fixed;
+inset: 0;
+z-index: 1000;
+}
+
+  .modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+  }
+
+  #modal-content {
+    position: relative;
+    max-width: 600px;
+    margin: 10% auto;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    z-index: 1001;
+  }
