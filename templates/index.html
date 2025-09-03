@@ -115,6 +115,12 @@
             padding: 4px 8px;
         }
 
+        tr.active {
+          background-color: #f0f0f0; /* light gray */
+        }
+        active {
+          background-color: #f0f0f0; /* light gray */
+        }
          #modal-backdrop {
         position: fixed;
         inset: 0;
@@ -169,7 +175,6 @@
                 <input id="search" type="text" placeholder="Search"
                        hx-get="/conversations" hx-target="#conversations-body" hx-trigger="keyup changed delay:300ms"
                        name="q">
-                <input id="search-input" type="text" placeholder="Search by name or number" onkeyup="filterConversations()">
             </div>
             <table>
                 <thead>
@@ -179,7 +184,9 @@
                         <th></th>
                     </tr>
                 </thead>
-                {% include "partials/conversations_tbody.html" %}
+                <tbody id="conversations-body">
+                  {% include "partials/conversations_tbody_inner.html" %}
+                </tbody>
             </table>
             <div id="conv-count" style="padding:10px;">
               {{ conversations|length }} Conversation{{ '' if (conversations|length) == 1 else 's' }}

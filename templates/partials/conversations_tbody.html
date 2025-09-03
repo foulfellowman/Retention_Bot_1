@@ -1,27 +1,4 @@
-<tbody id="conversations-body"
-     hx-get="/conversations?q="
-     hx-trigger="every 30s, keyup from:#search"
-     hx-target="#conversations-body"
-     hx-swap="outerHTML">
-{% for c in conversations %}
-      <tr hx-get="/conversations/{{ c.phone_number }}"
-          hx-target="#chat-pane"
-          hx-swap="outerHTML">
-    <td>{{ c.display_name }}<br>{{ c.phone_number }}</td>
-    <td>{{ c.status }}</td>
-    <td>
-      <button class="edit-btn"
-              hx-get="/conversations/{{ c.phone_number }}/edit"
-              hx-target="#modal-container"
-              hx-swap="innerHTML">edit</button>
-    </td>
-    </tr>
-{% endfor %}
-{% if not conversations %}
-      <tr><td colspan="3">No conversations found</td></tr>
-{% endif %}
+{# templates/partials/conversations_tbody.html #}
+<tbody id="conversations-body">
+  {% include "partials/conversations_tbody_inner.html" %}
 </tbody>
-<!-- Out-of-band update, will REPLACE the existing #conv-count -->
-<div id="conv-count" hx-swap-oob="true">
-  {{ items|length }} Conversation{{ '' if (items|length) == 1 else 's' }}
-</div>

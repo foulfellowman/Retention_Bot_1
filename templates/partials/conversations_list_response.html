@@ -1,0 +1,14 @@
+<!-- templates/partials/conversations_list_response.html -->
+<!--  <tbody id="conversations-body" hx-swap-oob="true"> -->
+
+<!-- </tbody> -->
+<template id="conversations-body" hx-swap-oob="innerHTML">
+  {% with conversations=conversations, selected_phone=selected_phone %}
+    {% include "partials/conversations_tbody_inner.html" %}
+  {% endwith %}
+</template>
+
+<div id="chat-pane" hx-swap-oob="true">
+  {% include "partials/conversation_view.html" %}
+</div>
+

@@ -1,0 +1,20 @@
+{% for c in conversations %}
+    <tr hx-get="/conversations/{{ c.phone_number }}"
+        hx-target="#chat-pane"
+        hx-on="click: document.querySelectorAll('#conversations-body tr').forEach(e => e.classList.remove('active')); this.classList.add('active')"
+        class="{% if c.phone_number == selected_phone %}active{% endif %}">
+      <td>{{ c.display_name }}<br>{{ c.phone_number }}</td>
+            <!-- Debug info -->
+      <td>{{ c.status }}</td>
+      <td>
+        <button class="edit-btn"
+                hx-get="/conversations/{{ c.phone_number }}/edit"
+                hx-target="#modal-container"
+                hx-swap="innerHTML">edit</button>
+      </td>
+    </tr>
+{% endfor %}
+
+{% if not conversations %}
+  <tr><td colspan="3">No conversations found</td></tr>
+{% endif %}

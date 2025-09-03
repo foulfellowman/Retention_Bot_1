@@ -184,8 +184,15 @@ def create_app() -> Flask:
         db = DB()
         try:
             messages = db.SQL_full_conversation_per_phone(phone)
-            return render_template('partials/conversation_view.html',
-                                   selected_phone=phone, messages=messages)
+            conversations = db.fetch_conversations()
+            # print(conversations)
+            print('Selected: ', phone)
+
+            return render_template(
+                'partials/conversations_list_response.html',
+                selected_phone=phone,
+                messages=messages,
+                conversations=conversations)
         finally:
             db.close()
 
