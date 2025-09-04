@@ -174,7 +174,7 @@ def create_app() -> Flask:
         try:
             conversations = db.fetch_conversations(q=q if q else None)
             # Either render a partial tbody, or return JSON
-            return render_template('partials/conversations_tbody.html', conversations=conversations,
+            return render_template('partials/conversations_tbody_inner.html', conversations=conversations,
                                    conversations_count=len(conversations))
         finally:
             db.close()
@@ -192,7 +192,8 @@ def create_app() -> Flask:
                 'partials/conversations_list_response.html',
                 selected_phone=phone,
                 messages=messages,
-                conversations=conversations)
+                conversations=conversations,
+                conversations_count=len(conversations))
         finally:
             db.close()
 

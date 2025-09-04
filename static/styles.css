@@ -50,17 +50,12 @@ th, td {
     padding: 8px;
     border-bottom: 1px solid #eee;
 }
-.conversations-body {
-  width: 40%;
-  border-right: 1px solid #ccc;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
+
 .list-scroll {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;     /* left list scrolls */
+  scrollbar-gutter: stable;
 }
 
 /* Right panel */

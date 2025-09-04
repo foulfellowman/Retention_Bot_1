@@ -55,10 +55,11 @@
                       {% include "partials/conversations_tbody_inner.html" %}
                     </tbody>
                 </table>
+
             </div>
-            <div id="conv-count" style="padding:10px;">
-              {{ conversations|length }} Conversation{{ '' if (conversations|length) == 1 else 's' }}
-            </div>
+                <div id="conv-count" style="padding:10px;">
+                    {{ conversations_count }} Conversation{{ '' if (conversations_count) == 1 else 's' }}
+                </div>
         </div>
 
         <!-- Right panel: Chat Viewer -->
@@ -73,6 +74,42 @@
 
     <!-- At bottom of <body> -->
     <div id="modal-container"></div>
+    <script>
+      (function() {
+        function getConversationRowCount() {
+          var tbody = document.getElementById('conversations-body');
+          if (!tbody) return 0;
+          var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+          // Count only real conversation rows (those with an edit button)
+          var convRows = rows.filter(function(tr) { return tr.querySelector('.edit-btn'); });
+          return convRows.length;
+        }
 
+        function updateConvCount() {
+          var count = getConversationRowCount();
+          var el = document.getElementById('conv-count');
+          if (el) {
+            el.textContent = count + ' Conversation' + (count === 1 ? '' : 's');
+          }
+        }
+
+        // Initial update after DOM is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', updateConvCount);
+        } else {
+          updateConvCount();
+        }
+
+        // Update whenever HTMX swaps content
+        document.addEventListener('htmx:afterSwap', function() { updateConvCount(); });
+
+        // Observe direct DOM changes within the tbody (add/remove rows)
+        var tbody = document.getElementById('conversations-body');
+        if (tbody && 'MutationObserver' in window) {
+          var obs = new MutationObserver(function() { updateConvCount(); });
+          obs.observe(tbody, { childList: true, subtree: true });
+        }
+      })();
+    </script>
 </body>
 </html>

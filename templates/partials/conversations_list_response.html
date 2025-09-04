@@ -2,13 +2,13 @@
 <!--  <tbody id="conversations-body" hx-swap-oob="true"> -->
 
 <!-- </tbody> -->
-<template id="conversations-body" hx-swap-oob="innerHTML">
+<template id="conversations-body">
   {% with conversations=conversations, selected_phone=selected_phone %}
     {% include "partials/conversations_tbody_inner.html" %}
   {% endwith %}
 </template>
 
-<div id="chat-pane" hx-swap-oob="true">
+<div id="chat-pane">
   {% include "partials/conversation_view.html" %}
 </div>
 
