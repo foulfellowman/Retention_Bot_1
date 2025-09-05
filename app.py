@@ -1,5 +1,7 @@
 # app.py
-from flask import Flask, request, render_template, session, redirect, url_for, current_app
+import json
+
+from flask import Flask, request, render_template, session, redirect, url_for, current_app, make_response
 import os
 import psutil
 from dotenv import load_dotenv
@@ -107,7 +109,17 @@ def create_app() -> Flask:
                 request.form.get("twilio-sid"),
                 request.form.get("twilio-token"),
             )
-        return render_template("partials/settings.html", user=user)
+
+        # 2) return empty content to clear #modal-container
+        resp = make_response("")
+        # (optional) trigger a toast on the client
+        resp.headers["HX-Trigger"] = json.dumps({"toast": {"message": "Settings saved"}})
+
+        # return render_template("partials/settings.html", user=user)
+
+        return resp
+
+
 
     @app.route("/sms", methods=["POST"])
     def sms_reply():

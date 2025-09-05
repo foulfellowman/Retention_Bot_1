@@ -1,7 +1,9 @@
 <div id="chat-pane" class="chat-pane">
   <div class="chat-header">
     <h3>{{ selected_phone }}</h3>
-    <a href="/conversations/{{ selected_phone }}/export">Export this conversation</a>
+    <a href="/conversations/{{ selected_phone }}/export" class="btn-export">
+      Export this conversation
+    </a>
   </div>
   <div class="messages">
     {% for m in messages %}

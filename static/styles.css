@@ -56,6 +56,7 @@ th, td {
   min-height: 0;
   overflow: auto;     /* left list scrolls */
   scrollbar-gutter: stable;
+  padding: 0 20px;
 }
 
 /* Right panel */
@@ -64,6 +65,7 @@ th, td {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding: 0 20px;
 }
 .messages {
     flex: 1;
@@ -146,3 +148,18 @@ z-index: 1000;
     border-radius: 8px;
     z-index: 1001;
   }
+
+ .btn-export {
+  display: inline-block;
+  padding: 4px 10px;
+  background-color: #e0e0e0; /* light gray background */
+  border: 1px solid #ccc;    /* subtle border */
+  border-radius: 4px;        /* slightly rounded corners */
+  text-decoration: none;     /* remove underline */
+  color: black;              /* black text */
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn-export:hover {
+  background-color: #d5d5d5; /* slightly darker on hover */
+}
