@@ -4,7 +4,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 
-from db import DB, insert_message
+from db import DB, insert_message, insert_message_from_gpt
 from gpt import GPTClient
 from user_context import UserContext
 
@@ -62,7 +62,9 @@ class ConversationApp:
 
     def loop(self):
         print("\n--- GPT SMS Conversation Simulator ---")
-        print("\nGPT: Hey! Quick check-in—are you still seeing any pest activity?")
+        introg_msg = "\nGPT: Hey! Quick check-in—are you still seeing any pest activity?"
+        insert_message_from_gpt(self.db, self.phone, introg_msg)
+        print(introg_msg)
         while True:
             if self.should_exit_stateful():
                 break

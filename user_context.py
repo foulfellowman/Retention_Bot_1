@@ -61,11 +61,69 @@ class UserContext:
 
         return self.trigger_event(trigger, **kwargs)
 
+    def set_current_state(self, state_name: str) -> None:
+        """
+        Update the FSM's current state for this phone number.
+        If the phone number doesn't exist in fsm_state, insert it.
+        """
+        db_connection = DB()
+        cur = db_connection.conn.cursor()
+
+        # Try to update
+        cur.execute(
+            """
+            UPDATE fsm_state
+            SET statename = %s
+            WHERE phone_number = %s
+            """,
+            (state_name, self._phone_number)
+        )
+
+        # If no row was updated, insert instead
+        if cur.rowcount == 0:
+            cur.execute(
+                """
+                INSERT INTO fsm_state (phone_number, statename)
+                VALUES (%s, %s)
+                """,
+                (self._phone_number, state_name)
+            )
+
+        db_connection.conn.commit()
+        cur.close()
+        db_connection.close()
+
     def get_current_state(self) -> str:
         """
-        Return the FSM's current state name.
+        Return the FSM's current state name from the DB,
+        inserting a row if it doesn't exist.
         """
-        return self.fsm.state
+        db_connection = DB()
+        cur = db_connection.conn.cursor()
+
+        # Check if a state already exists
+        cur.execute(
+            "SELECT statename FROM fsm_state WHERE phone_number = %s",
+            (self._phone_number,)
+        )
+        row = cur.fetchone()
+
+        if not row:
+            # Initialize state
+            initial_state = self.fsm.state  # or hardcode "start"
+            cur.execute(
+                "INSERT INTO fsm_state (phone_number, statename) VALUES (%s, %s)",
+                (self._phone_number, initial_state)
+            )
+            db_connection.conn.commit()
+            state = initial_state
+        else:
+            # Existing state found
+            state = row[0]
+
+        cur.close()
+        db_connection.close()
+        return state
 
     def _ensure_phone_in_db(self):
         db_connection = DB()

@@ -64,7 +64,7 @@ class DB:
                 SELECT message_data, body, direction, sent_at
                 FROM public.message
                 WHERE phone_number = %s
-                ORDER BY message_id DESC;
+                ORDER BY message_id ASC;
             """,
                         (phone,)
                         )
@@ -93,8 +93,11 @@ class DB:
                        m.phone_number,
                        COALESCE((m.message_data->>'role'), m.direction) AS last_role,
                        COALESCE((m.message_data->>'content'), m.body) AS last_text,
-                       MAX(m.sent_at) OVER (PARTITION BY m.phone_number) AS last_at
+                       MAX(m.sent_at) OVER (PARTITION BY m.phone_number) AS last_at,
+                       fs.statename AS fsm_state
                 FROM public.message AS m
+                LEFT JOIN public.fsm_state AS fs
+                  ON fs."phone_number" = m.phone_number
                 WHERE (%s IS NULL
                        OR m.phone_number ILIKE '%%' || %s || '%%'
                        OR COALESCE((m.message_data->>'content'), '') ILIKE '%%' || %s || '%%')
@@ -106,11 +109,11 @@ class DB:
 
         items: List[Dict] = []
 
-        for phone, last_role, last_text, last_at in rows:
+        for phone, last_role, last_text, last_at, fsm_state in rows:
             items.append({
                 "phone_number": phone,
-                "display_name": phone,          # TODO: replace w/ CRM name lookup
-                "status": "Waiting",            # TODO: derive from your canonical field
+                "display_name": phone,  # TODO: replace w/ CRM name lookup
+                "status": str(fsm_state).upper() or "None",
                 "last_message_at": last_at,
                 "last_snippet": (last_text or "")[:80],
                 "last_role": last_role,
@@ -124,5 +127,15 @@ def insert_message(db_connection, phone, user_input):
     cur.execute(
         "INSERT INTO message (phone_number, message_data, direction, body) VALUES (%s, %s, %s, %s)",
         (phone, json.dumps({"role": "user", "content": user_input}), 'inbound', user_input)
+    )
+    db_connection.conn.commit()
+
+
+def insert_message_from_gpt(db_connection, phone, gpt_input):
+    cur = db_connection.conn.cursor()
+
+    cur.execute(
+        "INSERT INTO message (phone_number, message_data, direction, body) VALUES (%s, %s, %s, %s)",
+        (phone, json.dumps({"role": "developer", "content": gpt_input}), 'outbound', gpt_input)
     )
     db_connection.conn.commit()
