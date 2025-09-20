@@ -1,0 +1,42 @@
+<div id="modal-backdrop"
+     style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 1000;">
+  <div id="modal-content"
+       style="position: relative; max-width: 480px; margin: 10% auto; padding: 24px; background: white; border-radius: 8px; z-index: 1001; box-shadow: 0 12px 24px rgba(0,0,0,0.2);">
+    <button onclick="closeModal()"
+            style="position: absolute; top: 12px; right: 12px; border: none; background: transparent; font-size: 1.5em; cursor: pointer;">
+      x
+    </button>
+
+    <h2 style="margin-top: 0;">Edit Conversation State</h2>
+    <p style="margin-top: 0.25rem; color: #555;">Phone: <strong>{{ phone }}</strong></p>
+
+    {% if error %}
+      <div style="margin-bottom: 1rem; padding: 0.75rem; background: #fdecea; color: #b71c1c; border-radius: 6px;">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    <form hx-post="/conversations/{{ phone }}/edit"
+          hx-target="#modal-container"
+          hx-swap="innerHTML"
+          style="display: flex; flex-direction: column; gap: 16px;">
+      <label for="conversation-state" style="font-weight: 600;">
+        Conversation state
+      </label>
+      <select id="conversation-state"
+              name="state"
+              style="padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px;">
+        {% for state in states %}
+          <option value="{{ state }}" {% if state == current_state %}selected{% endif %}>
+            {{ state.replace('_', ' ')|title }}
+          </option>
+        {% endfor %}
+      </select>
+
+      <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 12px;">
+        <button type="button" onclick="closeModal()" style="padding: 8px 14px; border: 1px solid #ccc; background: #f7f7f7; border-radius: 6px; cursor: pointer;">Cancel</button>
+        <button type="submit" style="padding: 8px 14px; border: none; background: #0066ff; color: white; border-radius: 6px; cursor: pointer;">Save</button>
+      </div>
+    </form>
+  </div>
+</div>

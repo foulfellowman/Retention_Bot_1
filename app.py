@@ -119,7 +119,70 @@ def create_app() -> Flask:
 
         return resp
 
+    @app.route('/conversations/<phone>/edit', methods=['GET', 'POST'])
+    def conversation_edit(phone):
+        allowed_states = ['start', 'interested', 'action_sqft', 'confused', 'not_interested', 'follow_up', 'pause', 'stop', 'done']
+        db = DB()
 
+        def fetch_current_state():
+            cur = db.conn.cursor()
+            cur.execute(
+                'SELECT statename FROM public.fsm_state WHERE phone_number = %s',
+                (phone,)
+            )
+            row = cur.fetchone()
+            cur.close()
+            return row[0] if row and row[0] else 'start'
+
+        try:
+            if request.method == 'POST':
+                new_state = (request.form.get('state') or '').strip()
+                if new_state not in allowed_states:
+                    current_state = fetch_current_state()
+                    return render_template(
+                        'partials/conversation_edit_modal.html',
+                        phone=phone,
+                        current_state=current_state,
+                        states=allowed_states,
+                        error='Invalid state selection. Please choose a valid state.'
+                    )
+
+                cur = db.conn.cursor()
+                cur.execute(
+                    """
+                    UPDATE public.fsm_state
+                    SET statename = %s
+                    WHERE phone_number = %s
+                    """,
+                    (new_state, phone)
+                )
+                if cur.rowcount == 0:
+                    cur.execute(
+                        """
+                        INSERT INTO public.fsm_state (phone_number, statename)
+                        VALUES (%s, %s)
+                        """,
+                        (phone, new_state)
+                    )
+                db.conn.commit()
+                cur.close()
+
+                response = make_response('', 204)
+                response.headers['HX-Trigger'] = json.dumps({'refresh-conversations': {'phone': phone}})
+                return response
+
+            current_state = fetch_current_state()
+            return render_template(
+                'partials/conversation_edit_modal.html',
+                phone=phone,
+                current_state=current_state,
+                states=allowed_states
+            )
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
 
     @app.route("/sms", methods=["POST"])
     def sms_reply():

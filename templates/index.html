@@ -110,6 +110,15 @@
           obs.observe(tbody, { childList: true, subtree: true });
         }
       })();
+
+      document.body.addEventListener('refresh-conversations', function(evt) {
+        var detail = (evt && evt.detail) ? evt.detail : {};
+        closeModal();
+        htmx.ajax('GET', '/conversations', {target: '#conversations-body', swap: 'innerHTML'});
+        if (detail.phone) {
+          htmx.ajax('GET', '/conversations/' + detail.phone, {target: '#chat-pane', swap: 'innerHTML'});
+        }
+      });
     </script>
 </body>
 </html>
