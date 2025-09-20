@@ -1,5 +1,7 @@
 import json
 import os
+from datetime import datetime
+
 import psycopg2
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
@@ -113,7 +115,7 @@ class DB:
             items.append({
                 "phone_number": phone,
                 "display_name": phone,  # TODO: replace w/ CRM name lookup
-                "status": str(fsm_state).upper() or "None",
+                "status": str(fsm_state).upper().strip() or "None",
                 "last_message_at": last_at,
                 "last_snippet": (last_text or "")[:80],
                 "last_role": last_role,
@@ -139,3 +141,107 @@ def insert_message_from_gpt(db_connection, phone, gpt_input):
         (phone, json.dumps({"role": "developer", "content": gpt_input}), 'outbound', gpt_input)
     )
     db_connection.conn.commit()
+
+# ----------------------------
+# Test run summary tables/helpers
+# ----------------------------
+
+def ensure_test_run_tables(db_connection: "DB") -> None:
+    """Create test run summary tables if they do not exist.
+    - public.test_run: parent table for a test execution
+    - public.test_case: child rows for each scenario result
+    """
+    cur = db_connection.conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS public.test_run (
+            run_id SERIAL PRIMARY KEY,
+            started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            finished_at TIMESTAMPTZ NULL,
+            total_passed INT NOT NULL DEFAULT 0,
+            total_failed INT NOT NULL DEFAULT 0
+        );
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS public.test_case (
+            case_id SERIAL PRIMARY KEY,
+            run_id INT NOT NULL REFERENCES public.test_run(run_id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            result TEXT NOT NULL,
+            steps_verified INT NOT NULL DEFAULT 0,
+            total_steps INT NOT NULL DEFAULT 0,
+            duration_seconds DOUBLE PRECISION NULL,
+            finished_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+        """
+    )
+    db_connection.conn.commit()
+
+
+def insert_test_run(db_connection: "DB",
+                    started_at: Optional[datetime] = None,
+                    total_passed: int = 0,
+                    total_failed: int = 0) -> int:
+    """Insert a new test_run row and return its id."""
+    cur = db_connection.conn.cursor()
+    if started_at is None:
+        started_at = datetime.utcnow()
+    cur.execute(
+        """
+        INSERT INTO public.test_run (started_at, total_passed, total_failed)
+        VALUES (%s, %s, %s)
+        RETURNING run_id;
+        """,
+        (started_at, total_passed, total_failed)
+    )
+    run_id = cur.fetchone()[0]
+    db_connection.conn.commit()
+    return run_id
+
+
+def update_test_run(db_connection: "DB", run_id: int,
+                    finished_at: Optional[datetime] = None,
+                    total_passed: Optional[int] = None,
+                    total_failed: Optional[int] = None) -> None:
+    """Update totals and/or finished_at for a test_run."""
+    sets = []
+    params: list = []
+    if finished_at is None:
+        finished_at = datetime.utcnow()
+    sets.append("finished_at = %s")
+    params.append(finished_at)
+    if total_passed is not None:
+        sets.append("total_passed = %s")
+        params.append(total_passed)
+    if total_failed is not None:
+        sets.append("total_failed = %s")
+        params.append(total_failed)
+    params.append(run_id)
+    sql = f"UPDATE public.test_run SET {', '.join(sets)} WHERE run_id = %s"
+    cur = db_connection.conn.cursor()
+    cur.execute(sql, tuple(params))
+    db_connection.conn.commit()
+
+
+def insert_test_case(db_connection: "DB", run_id: int, name: str, result: str,
+                     steps_verified: int, total_steps: int,
+                     duration_seconds: Optional[float] = None,
+                     finished_at: Optional[datetime] = None) -> int:
+    """Insert a child test_case row and return its id."""
+    cur = db_connection.conn.cursor()
+    if finished_at is None:
+        finished_at = datetime.utcnow()
+    cur.execute(
+        """
+        INSERT INTO public.test_case
+            (run_id, name, result, steps_verified, total_steps, duration_seconds, finished_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        RETURNING case_id;
+        """,
+        (run_id, name, result, steps_verified, total_steps, duration_seconds, finished_at)
+    )
+    case_id = cur.fetchone()[0]
+    db_connection.conn.commit()
+    return case_id
