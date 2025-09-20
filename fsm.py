@@ -24,7 +24,7 @@ class IntentionFlow:
         # Define transitions
         self.machine.add_transition(trigger='receive_positive_response', source=['start', 'confused', 'pause'], dest='interested')
         self.machine.add_transition(trigger='go_to_sqft', source=['interested', 'start', 'confused'], dest='action_sqft')
-        self.machine.add_transition(trigger='receive_followup', source=['action_sqft','interested'], dest='follow_up')
+        self.machine.add_transition(trigger='receive_followup', source=['action_sqft', 'interested'], dest='follow_up')
         self.machine.add_transition(trigger='complete_flow', source='follow_up', dest='done')
         self.machine.add_transition(trigger='receive_negative_response', source='*', dest='not_interested')
         self.machine.add_transition(trigger='user_stopped', source='*', dest='stop')

@@ -48,6 +48,31 @@ class ConversationApp:
         # String is passed because there is no incoming sms
         self.gpt.set_context(self.user.turn_into_gpt_context(incoming_sms=""))
 
+    def reset_state(self):
+        """Reset DB + in-memory context for a clean test run.
+        This purges prior messages and FSM state for the phone, and clears GPT context.
+        Intended for local testing/simulation only.
+        """
+        # Clear GPT in-memory context
+        try:
+            self.gpt.set_context([])
+        except Exception:
+            pass
+
+        # Purge DB rows for this phone (messages + FSM state)
+        try:
+            cur = self.db.conn.cursor()
+            cur.execute("DELETE FROM public.message WHERE phone_number = %s", (self.phone,))
+            cur.execute("DELETE FROM public.fsm_state WHERE phone_number = %s", (self.phone,))
+            self.db.conn.commit()
+            try:
+                cur.close()
+            except Exception:
+                pass
+        except Exception:
+            # If DB is unavailable in certain test contexts, ignore
+            pass
+
     def should_exit_stateful(self) -> bool:
         return self.user.get_current_state() in {"pause", "complete_flow", "user_stopped"}
 
@@ -88,6 +113,7 @@ def main():
     db = DB()
 
     app = ConversationApp(phone=cfg["DEFAULT_PHONE"], db=db, gpt=gpt, user=user)
+    app.reset_state()
     app.setup()
 
     try:
