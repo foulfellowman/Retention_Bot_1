@@ -32,7 +32,14 @@ class UserContext:
             trigger_fn = getattr(self.fsm, event_name)
             if verbose:
                 print('Event Triggered: ', event_name)
+            # Fire transition on the in-memory FSM
             trigger_fn(**kwargs)
+            # Persist the resulting state to the DB immediately for reliable tracking
+            try:
+                self.set_current_state(self.fsm.state)
+            except Exception:
+                # Avoid blocking on persistence errors here; callers may retry/state will sync on next read
+                pass
             return True
         else:
             raise ValueError(f"No FSM trigger named '{event_name}'")
@@ -113,13 +120,14 @@ class UserContext:
             initial_state = self.fsm.state  # or hardcode "start"
             cur.execute(
                 "INSERT INTO fsm_state (phone_number, statename) VALUES (%s, %s)",
-                (self._phone_number, initial_state)
+                (self._phone_number, str(initial_state).strip())
             )
             db_connection.conn.commit()
             state = initial_state
         else:
             # Existing state found
             state = row[0]
+            state = str(state).strip()
 
         cur.close()
         db_connection.close()
