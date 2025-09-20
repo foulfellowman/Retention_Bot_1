@@ -22,7 +22,7 @@ class GPTClient:
         self._api_key = os.getenv("OPENAI_API_KEY")
         self._organization = os.getenv("OPENAI_ORG")
         self._client = OpenAI(api_key=self._api_key, organization=self._organization)
-        self._model = "gpt-3.5-turbo"
+        self._model = "gpt-4o-mini"
         self._base_instructions = base_prompt
         self._context = []
         self._temperature = temperature
