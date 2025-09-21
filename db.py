@@ -1,10 +1,10 @@
 import json
 import os
-from datetime import datetime
-
 import psycopg2
+from psycopg2 import sql
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
+from datetime import datetime
 
 load_dotenv()
 
@@ -84,9 +84,10 @@ class DB:
                 out.append({'role': role, 'content': content, 'sent_at': sent_at})
             return out
 
-    def fetch_conversations(self, q: Optional[str] = None) -> List[Dict]:
+    def fetch_conversations(self, q: Optional[str] = None, sort: Optional[str] = None) -> List[Dict]:
         """
         Return one row per phone_number (latest message), optionally filtered by query `q`.
+        Supports optional client-side sorting via `sort` in {"name", "number", "status"}.
         """
         with self.conn.cursor() as cur:
             cur.execute(
@@ -96,10 +97,14 @@ class DB:
                        COALESCE((m.message_data->>'role'), m.direction) AS last_role,
                        COALESCE((m.message_data->>'content'), m.body) AS last_text,
                        MAX(m.sent_at) OVER (PARTITION BY m.phone_number) AS last_at,
-                       fs.statename AS fsm_state
+                       fs.statename AS fsm_state,
+                       ct.first_name,
+                       ct.last_name
                 FROM public.message AS m
                 LEFT JOIN public.fsm_state AS fs
                   ON fs."phone_number" = m.phone_number
+                LEFT JOIN public.contact AS ct
+                  ON ct.phone_number = m.phone_number
                 WHERE (%s IS NULL
                        OR m.phone_number ILIKE '%%' || %s || '%%'
                        OR COALESCE((m.message_data->>'content'), '') ILIKE '%%' || %s || '%%')
@@ -111,16 +116,64 @@ class DB:
 
         items: List[Dict] = []
 
-        for phone, last_role, last_text, last_at, fsm_state in rows:
+        for phone, last_role, last_text, last_at, fsm_state, first_name, last_name in rows:
+            name_parts = []
+            if first_name and first_name.strip():
+                name_parts.append(first_name.strip())
+            if last_name and last_name.strip():
+                name_parts.append(last_name.strip())
+            display_name = " ".join(name_parts)
+
             items.append({
                 "phone_number": phone,
-                "display_name": phone,  # TODO: replace w/ CRM name lookup
-                "status": str(fsm_state).upper().strip() or "None",
+                "display_name": display_name,
+                "status": (str(fsm_state).upper() if fsm_state else "None"),
                 "last_message_at": last_at,
                 "last_snippet": (last_text or "")[:80],
                 "last_role": last_role,
             })
+
+        sort_key = (sort or "").lower()
+        if sort_key == "name":
+            items.sort(key=lambda item: (item["display_name"] or "").lower())
+        elif sort_key == "number":
+            items.sort(key=lambda item: item["phone_number"])
+        elif sort_key == "status":
+            items.sort(key=lambda item: item["status"] or "")
+
         return items
+
+    def _lookup_contact_names(self, phones: List[str]) -> Dict[str, str]:
+        if not phones:
+            print('no phones')
+            return {}
+
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT phone_number, first_name, last_name
+                    FROM public.contact
+                    WHERE phone_number = ANY(%s)
+                    """,
+                    (phones,),
+                )
+                rows = cur.fetchall()
+        except psycopg2.Error:
+            self.conn.rollback()
+            return {}
+
+        name_map: Dict[str, str] = {}
+        for phone, first, last in rows:
+            parts = []
+            if first:
+                parts.append(first.strip())
+            if last:
+                parts.append(last.strip())
+            if parts:
+                name_map[phone] = " ".join(parts)
+
+        return name_map
 
 
 def insert_message(db_connection, phone, user_input):
@@ -145,6 +198,7 @@ def insert_message_from_gpt(db_connection, phone, gpt_input):
 # ----------------------------
 # Test run summary tables/helpers
 # ----------------------------
+
 
 def ensure_test_run_tables(db_connection: "DB") -> None:
     """Create test run summary tables if they do not exist.

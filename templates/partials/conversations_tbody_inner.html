@@ -1,10 +1,11 @@
 {% for c in conversations %}
     <tr hx-get="/conversations/{{ c.phone_number }}"
         hx-target="#chat-pane"
-        hx-on="click: document.querySelectorAll('#conversations-body tr').forEach(e => e.classList.remove('active')); this.classList.add('active')"
+        hx-include="#search, #conversations-state"
+        hx-on="click: document.querySelectorAll('#conversations-body tr').forEach(e => e.classList.remove('active')); this.classList.add('active'); document.getElementById('current-selected-phone').value='{{ c.phone_number }}'"
         class="{% if c.phone_number == selected_phone %}active{% endif %}">
-      <td>{{ c.display_name }}<br>{{ c.phone_number }}</td>
-            <!-- Debug info -->
+      <td>{{ c.display_name or 'Unknown' }}</td>
+      <td>{{ c.phone_number }}</td>
       <td>{{ c.status }}</td>
       <td>
         <button class="edit-btn"
@@ -16,5 +17,5 @@
 {% endfor %}
 
 {% if not conversations %}
-  <tr><td colspan="3">No conversations found</td></tr>
+  <tr><td colspan="4">No conversations found</td></tr>
 {% endif %}
