@@ -39,16 +39,58 @@
         <div class="conversation-list">
             <div class="search-bar">
                 <input id="search" type="text" placeholder="Search"
-                       hx-get="/conversations" hx-target="#conversations-body" hx-trigger="keyup changed delay:300ms"
-                       name="q">
+                       name="q"
+                       value="{{ current_query }}"
+                       hx-get="/conversations"
+                       hx-target="#conversations-body"
+                       hx-trigger="keyup changed delay:300ms"
+                       hx-include="#conversations-state">
             </div>
+            <form id="conversations-state" style="display:none;">
+                <input type="hidden" name="sort" id="current-sort" value="{{ current_sort }}">
+                <input type="hidden" name="selected_phone" id="current-selected-phone" value="{{ selected_phone or '' }}">
+            </form>
             <div class="list-scroll">
                 <table>
                     <thead>
                         <tr>
-                            <th>Name | Number</th>
-                            <th>Status</th>
-                            <th></th>
+                            <th>
+                                <button type="button"
+                                        class="sort-btn{% if current_sort == 'name' %} active{% endif %}"
+                                        hx-get="/conversations"
+                                        hx-target="#conversations-body"
+                                        hx-swap="innerHTML"
+                                        hx-include="#search, #conversations-state"
+                                        hx-vals='{"sort":"name"}'
+                                        hx-on="click: document.getElementById('current-sort').value='name'">
+                                    Name
+                                </button>
+                            </th>
+                            <th>
+                                <button type="button"
+                                        class="sort-btn{% if current_sort == 'number' %} active{% endif %}"
+                                        hx-get="/conversations"
+                                        hx-target="#conversations-body"
+                                        hx-swap="innerHTML"
+                                        hx-include="#search, #conversations-state"
+                                        hx-vals='{"sort":"number"}'
+                                        hx-on="click: document.getElementById('current-sort').value='number'">
+                                    Number
+                                </button>
+                            </th>
+                            <th>
+                                <button type="button"
+                                        class="sort-btn{% if current_sort == 'status' %} active{% endif %}"
+                                        hx-get="/conversations"
+                                        hx-target="#conversations-body"
+                                        hx-swap="innerHTML"
+                                        hx-include="#search, #conversations-state"
+                                        hx-vals='{"sort":"status"}'
+                                        hx-on="click: document.getElementById('current-sort').value='status'">
+                                    Status
+                                </button>
+                            </th>
+                            <th>Edit</th>
                         </tr>
                     </thead>
                     <tbody id="conversations-body">
@@ -114,9 +156,42 @@
       document.body.addEventListener('refresh-conversations', function(evt) {
         var detail = (evt && evt.detail) ? evt.detail : {};
         closeModal();
-        htmx.ajax('GET', '/conversations', {target: '#conversations-body', swap: 'innerHTML'});
+
+        var searchInput = document.getElementById('search');
+        var sortInput = document.getElementById('current-sort');
+        var selectedInput = document.getElementById('current-selected-phone');
+
+        if (detail.phone && selectedInput) {
+          selectedInput.value = detail.phone;
+        }
+
+        var values = {};
+        if (searchInput && searchInput.value) {
+          values.q = searchInput.value;
+        }
+        if (sortInput && sortInput.value) {
+          values.sort = sortInput.value;
+        }
+        if (selectedInput && selectedInput.value) {
+          values.selected_phone = selectedInput.value;
+        }
+
+        htmx.ajax('GET', '/conversations', {
+          target: '#conversations-body',
+          swap: 'innerHTML',
+          values: values
+        });
+
         if (detail.phone) {
-          htmx.ajax('GET', '/conversations/' + detail.phone, {target: '#chat-pane', swap: 'innerHTML'});
+          var queryParts = [];
+          if (sortInput && sortInput.value) {
+            queryParts.push('sort=' + encodeURIComponent(sortInput.value));
+          }
+          if (searchInput && searchInput.value) {
+            queryParts.push('q=' + encodeURIComponent(searchInput.value));
+          }
+          var convoUrl = '/conversations/' + detail.phone + (queryParts.length ? '?' + queryParts.join('&') : '');
+          htmx.ajax('GET', convoUrl, {target: '#chat-pane', swap: 'innerHTML'});
         }
       });
     </script>
