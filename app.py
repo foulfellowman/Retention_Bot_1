@@ -130,7 +130,7 @@ def create_app() -> Flask:
             # Optionally, prime GPT context with current user info on first contact
             # user_ctx.set_user_info("Name", ["Service A", "Service B"], 90, "Service A")
             # user_ctx.turn_into_gpt_context(incoming_sms=incoming_msg) -> if needed:
-            # get_services()["gpt"].set_context(user_ctx.turn_into_gpt_context(incoming_sms=incoming_msg))
+            # get_services()["gpt"].set_context(user_ctx.phone_number, user_ctx.turn_into_gpt_context(incoming_sms=incoming_msg))
 
             # Generate reply via GPT
             gpt = get_services()["gpt"]

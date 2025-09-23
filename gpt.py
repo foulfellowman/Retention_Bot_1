@@ -1,6 +1,7 @@
 import json
 import pathlib
 from datetime import datetime
+from collections import defaultdict
 
 from dotenv import load_dotenv
 import os
@@ -24,7 +25,7 @@ class GPTClient:
         self._client = OpenAI(api_key=self._api_key, organization=self._organization)
         self._model = "gpt-4o-mini"
         self._base_instructions = base_prompt
-        self._context = []
+        self._contexts = defaultdict(list)
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._tools = load_tools()
@@ -39,8 +40,10 @@ class GPTClient:
     def get_max_tokens(self):
         return self._max_tokens
 
-    def get_context(self):
-        return self._context
+    def get_context(self, phone=None):
+        if phone is None:
+            return self._contexts
+        return list(self._contexts.get(phone, []))
 
     def get_client(self):
         return self._client
@@ -55,12 +58,11 @@ class GPTClient:
     def set_max_tokens(self, max_tokens: int):
         self._max_tokens = max_tokens
 
-    def set_context(self, context: list):
-        self._context = context
+    def set_context(self, phone: str, context: list):
+        self._contexts[phone] = list(context)
 
-    def add_to_context(self, role: str, content: str):
-        # {"role": "user", "content": f"{context}\n\nCustomer says: {incoming_sms}"}
-        self._context.append({"role": role, "content": content})
+    def add_to_context(self, phone: str, role: str, content: str):
+        self._contexts[phone].append({"role": role, "content": content})
 
     def generate_reasons(self, text: str, state: str) -> str:
         """
@@ -69,11 +71,11 @@ class GPTClient:
         prompt = f"""
         You are an intention classifier for a customer service SMS bot.
         The user's message was:
-    
+
         "{text}"
-    
+
         The system mapped this to the state: {state}
-    
+
         Explain briefly, in natural conversational language (not technical jargon),
         why this message fits that state.
         """
@@ -86,7 +88,9 @@ class GPTClient:
 
     # Call GPT model
     def generate_response(self, user_input: str, user: UserContext, db_instance):
-        messages = [{"role": "system", "content": self._base_instructions}] + self._context
+        phone = user.phone_number
+        context_messages = list(self._contexts.get(phone, []))
+        messages = [{"role": "system", "content": self._base_instructions}] + context_messages
         try:
             if db_instance:
                 previous_messages = get_session_messages_no_base_prompt(db_instance, user.phone_number)
@@ -194,15 +198,16 @@ class GPTClient:
             # Otherwise: FORCE template reply as a safe fallback
             data = json.loads(tool_get_fsm_reply(user))
             reply = data["reply"]
-            # self._context.append({"role": "assistant", "content": reply}) # DOUBLE MESSAGE ISSUE
+            # self._contexts[phone].append({"role": "assistant", "content": reply})  # DOUBLE MESSAGE ISSUE
             self.insert_with_db_instance(db_instance, reply, user)
             return reply
 
     def insert_with_db_instance(self, db_instance, reply, user):
-        self._context.append({"role": "assistant", "content": reply})
+        phone = user.phone_number
+        self._contexts[phone].append({"role": "assistant", "content": reply})
         try:
             if db_instance:
-                log_message_to_db(db_instance, user.phone_number, reply)
+                log_message_to_db(db_instance, phone, reply)
         except Exception as e:
             print(e)
 

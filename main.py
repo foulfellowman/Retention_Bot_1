@@ -29,7 +29,7 @@ def build_gpt_client(max_tokens: int) -> GPTClient:
 
 def build_user(phone: str) -> UserContext:
     user = UserContext(phone)
-    # seed/demo data; move to a fixture/factory if you don’t want this in prod
+    # seed/demo data; move to a fixture/factory if you don't want this in prod
     user.set_user_info("Billy", ["Rodent Control", "Termite Treatment"], 93, "Termite Treatment")
     return user
 
@@ -42,12 +42,6 @@ class ConversationApp:
     gpt: GPTClient
     user: UserContext
 
-    def setup(self):
-        # prime GPT context from current user info
-
-        # String is passed because there is no incoming sms
-        self.gpt.set_context(self.user.turn_into_gpt_context(incoming_sms=""))
-
     def reset_state(self):
         """Reset DB + in-memory context for a clean test run.
         This purges prior messages and FSM state for the phone, and clears GPT context.
@@ -55,7 +49,7 @@ class ConversationApp:
         """
         # Clear GPT in-memory context
         try:
-            self.gpt.set_context([])
+            self.gpt.set_context(self.phone, [])
         except Exception:
             pass
 
@@ -72,6 +66,12 @@ class ConversationApp:
         except Exception:
             # If DB is unavailable in certain test contexts, ignore
             pass
+
+    def setup(self):
+        # prime GPT context from current user info
+
+        # String is passed because there is no incoming sms
+        self.gpt.set_context(self.phone, self.user.turn_into_gpt_context(incoming_sms=""))
 
     def should_exit_stateful(self) -> bool:
         return self.user.get_current_state() in {"pause", "complete_flow", "user_stopped"}
@@ -113,6 +113,7 @@ def main():
     db = DB()
 
     app = ConversationApp(phone=cfg["DEFAULT_PHONE"], db=db, gpt=gpt, user=user)
+    # Always reset state for this CLI simulator (used for testing)
     app.reset_state()
     app.setup()
 
