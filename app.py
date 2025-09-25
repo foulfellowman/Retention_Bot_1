@@ -1,6 +1,10 @@
 import json
 # app.py
-from flask import Flask, request, render_template, session, redirect, url_for, current_app, make_response
+from flask import Flask, request, render_template, redirect, url_for, current_app, make_response, jsonify
+from flask_login import LoginManager, current_user, login_required, login_user, logout_user
+from flask_wtf import FlaskForm
+from wtforms import PasswordField, StringField, SubmitField
+from wtforms.validators import DataRequired
 import os
 import psutil
 from dotenv import load_dotenv
@@ -12,6 +16,12 @@ from twilio_test import TwilioSMSClient
 from user_context import UserContext
 
 
+class LoginForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('Log In')
+
+
 # ----------------------------
 # App factory & wiring
 # ----------------------------
@@ -20,6 +30,10 @@ def create_app() -> Flask:
     load_dotenv()
     app = Flask(__name__)
     app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret")
+
+    login_manager = LoginManager()
+    login_manager.login_view = "login"
+    login_manager.init_app(app)
 
     # Build dependencies once per process; store on app config
     services = {
@@ -44,9 +58,16 @@ def create_app() -> Flask:
     def get_services():
         return current_app.config["services"]
 
+    @login_manager.user_loader
+    def load_user(user_id: str):
+        admin_user = get_services()["admin_user"]
+        if admin_user.get_id() == user_id:
+            return admin_user
+        return None
+
     def get_current_user():
-        if session.get("logged_in"):
-            return get_services()["admin_user"]
+        if current_user.is_authenticated:
+            return current_user
         return None
 
     def get_twilio_sid():
@@ -63,25 +84,25 @@ def create_app() -> Flask:
     # ----------------------------
     @app.route("/login", methods=["GET", "POST"])
     def login():
-        admin_user = get_services()["admin_user"]
-        if request.method == "POST":
-            username = request.form.get("username")
-            password = request.form.get("password")
-            if username == admin_user.username and admin_user.check_password(password):
-                session["logged_in"] = True
-                return redirect(url_for("settings"))
-            return "Invalid credentials", 401
-        return '''
-            <form method="post">
-                Username: <input name="username"><br>
-                Password: <input name="password" type="password"><br>
-                <button type="submit">Login</button>
-            </form>
-        '''
+        if current_user.is_authenticated:
+            return redirect(url_for("settings"))
+
+        form = LoginForm()
+        if form.validate_on_submit():
+            admin_user = get_services()["admin_user"]
+            if form.username.data == admin_user.username and admin_user.check_password(form.password.data):
+                login_user(admin_user)
+                next_url = request.args.get("next")
+                if next_url and not next_url.startswith("/"):
+                    next_url = None
+                return redirect(next_url or url_for("settings"))
+            form.password.errors.append("Invalid username or password.")
+        return render_template("login.html", form=form)
 
     @app.route("/logout")
+    @login_required
     def logout():
-        session.clear()
+        logout_user()
         return redirect(url_for("login"))
 
     @app.route("/ping")
@@ -90,16 +111,19 @@ def create_app() -> Flask:
         return "<span style='color: green;'>Server is up</span>"
 
     @app.route("/settings")
+    @login_required
     def settings():
         user = get_current_user()
         return render_template("partials/settings.html", user=user)
 
     @app.route("/settings-modal")
+    @login_required
     def settings_modal():
         user = get_current_user()
         return render_template("partials/settings_modal.html", user=user)
 
     @app.route("/save-settings", methods=["POST"])
+    @login_required
     def save_settings():
         user = get_current_user()
         if user:
@@ -150,6 +174,7 @@ def create_app() -> Flask:
         return "OK", 200
 
     @app.route('/')
+    @login_required
     def index():
         user = get_current_user()
         q = request.args.get('q')
@@ -173,6 +198,7 @@ def create_app() -> Flask:
             db.close()
 
     @app.route('/conversations')
+    @login_required
     def conversations_list():
         q = request.args.get('q')
         sort = request.args.get('sort')
@@ -190,6 +216,7 @@ def create_app() -> Flask:
             db.close()
 
     @app.route('/conversations/<phone>')
+    @login_required
     def conversation_view(phone):
         db = DB()
         try:
@@ -211,6 +238,7 @@ def create_app() -> Flask:
             db.close()
 
     @app.route('/conversations/<phone>/edit', methods=['GET', 'POST'])
+    @login_required
     def conversation_edit(phone):
         allowed_states = ['start', 'interested', 'action_sqft', 'confused', 'not_interested', 'follow_up', 'pause', 'stop', 'done']
         db = DB()
@@ -276,6 +304,7 @@ def create_app() -> Flask:
                 pass
 
     @app.route('/conversations/<phone>/export')
+    @login_required
     def conversation_export(phone):
         db = DB()
         try:

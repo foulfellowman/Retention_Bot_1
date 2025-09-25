@@ -1,10 +1,16 @@
-class Admin:
+from flask_login import UserMixin
+
+
+class Admin(UserMixin):
     def __init__(self, username, password, api_key='', twilio_sid='', twilio_token=''):
         self.username = username
         self.password = password
         self.api_key = api_key
         self.twilio_sid = twilio_sid
         self.twilio_token = twilio_token
+
+    def get_id(self):
+        return self.username
 
     def check_password(self, password):
         return self.password == password
