@@ -22,8 +22,12 @@
 
         <!-- Right side: user + gear -->
         <div style="display: flex; align-items: center; gap: 10px;">
-            {% if user_is_logged_in %}
-                <span>Atomic User</span>
+            {% if current_user.is_authenticated %}
+                <span>{{ current_user.email }}</span>
+                <form method="post" action="{{ url_for('logout') }}">
+                  {{ form.csrf_token() if form is defined and form.csrf_token is defined }}
+                  <button type="submit" class="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300">Logout</button>
+                </form>
             {% endif %}
             <a
               hx-get="/settings-modal"
