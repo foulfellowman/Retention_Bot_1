@@ -183,6 +183,7 @@ def create_app() -> Flask:
         db = DB()
         try:
             conversations = db.fetch_conversations(q=q, sort=sort, direction=direction)
+            done_count = sum(1 for c in conversations if (c.get('status') or '').upper() == 'DONE')
             selected_phone = conversations[0]['phone_number'] if conversations else None
             messages = db.SQL_full_conversation_per_phone(selected_phone) if selected_phone else []
             return render_template(
@@ -190,6 +191,7 @@ def create_app() -> Flask:
                 conversations=conversations,
                 selected_phone=selected_phone,
                 conversations_count=len(conversations),
+                done_count=done_count,
                 messages=messages,
                 user_is_logged_in=bool(user),
                 current_sort=(sort or ''),

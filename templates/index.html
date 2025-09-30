@@ -104,8 +104,9 @@
                 </table>
 
             </div>
-                <div id="conv-count" style="padding:10px;">
-                    {{ conversations_count }} Conversation{{ '' if (conversations_count) == 1 else 's' }}
+                <div id="conv-count" class="conversation-metrics">
+                    <span id="total-conv-count">{{ conversations_count }} Conversation{{ '' if (conversations_count) == 1 else 's' }}</span>
+                    <span id="done-count">{{ done_count }} Done</span>
                 </div>
         </div>
 
@@ -174,28 +175,49 @@
           return convRows.length;
         }
 
-        function updateConvCount() {
+        function getDoneConversationCount() {
+          var tbody = document.getElementById('conversations-body');
+          if (!tbody) return 0;
+          var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+          return rows.reduce(function(total, tr) {
+            if (!tr.querySelector('.edit-btn')) {
+              return total;
+            }
+            var badge = tr.querySelector('.status-badge');
+            if (badge && badge.textContent && badge.textContent.trim().toUpperCase() === 'DONE') {
+              return total + 1;
+            }
+            return total;
+          }, 0);
+        }
+
+        function updateConvMetrics() {
           var count = getConversationRowCount();
-          var el = document.getElementById('conv-count');
-          if (el) {
-            el.textContent = count + ' Conversation' + (count === 1 ? '' : 's');
+          var done = getDoneConversationCount();
+          var totalEl = document.getElementById('total-conv-count');
+          if (totalEl) {
+            totalEl.textContent = count + ' Conversation' + (count === 1 ? '' : 's');
+          }
+          var doneEl = document.getElementById('done-count');
+          if (doneEl) {
+            doneEl.textContent = done + ' Done';
           }
         }
 
         // Initial update after DOM is ready
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', updateConvCount);
+          document.addEventListener('DOMContentLoaded', updateConvMetrics);
         } else {
-          updateConvCount();
+          updateConvMetrics();
         }
 
         // Update whenever HTMX swaps content
-        document.addEventListener('htmx:afterSwap', function() { updateConvCount(); });
+        document.addEventListener('htmx:afterSwap', function() { updateConvMetrics(); });
 
         // Observe direct DOM changes within the tbody (add/remove rows)
         var tbody = document.getElementById('conversations-body');
         if (tbody && 'MutationObserver' in window) {
-          var obs = new MutationObserver(function() { updateConvCount(); });
+          var obs = new MutationObserver(function() { updateConvMetrics(); });
           obs.observe(tbody, { childList: true, subtree: true });
         }
       })();
@@ -251,3 +273,5 @@
     </script>
 </body>
 </html>
+
+
