@@ -179,9 +179,10 @@ def create_app() -> Flask:
         user = get_current_user()
         q = request.args.get('q')
         sort = request.args.get('sort')
+        direction = request.args.get('direction') or 'asc'
         db = DB()
         try:
-            conversations = db.fetch_conversations(q=q, sort=sort)
+            conversations = db.fetch_conversations(q=q, sort=sort, direction=direction)
             selected_phone = conversations[0]['phone_number'] if conversations else None
             messages = db.SQL_full_conversation_per_phone(selected_phone) if selected_phone else []
             return render_template(
@@ -192,6 +193,7 @@ def create_app() -> Flask:
                 messages=messages,
                 user_is_logged_in=bool(user),
                 current_sort=(sort or ''),
+                current_direction=direction,
                 current_query=(q or ''),
             )
         finally:
@@ -202,28 +204,31 @@ def create_app() -> Flask:
     def conversations_list():
         q = request.args.get('q')
         sort = request.args.get('sort')
+        direction = request.args.get('direction') or 'asc'
         selected_phone = request.args.get('selected_phone')
         db = DB()
         try:
-            conversations = db.fetch_conversations(q=q if q else None, sort=sort)
+            conversations = db.fetch_conversations(q=q if q else None, sort=sort, direction=direction)
             # Either render a partial tbody, or return JSON
             return render_template('partials/conversations_tbody_inner.html',
                                    conversations=conversations,
                                    conversations_count=len(conversations),
-                                   selected_phone=selected_phone,
-                                   current_sort=(sort or ''))
+                                    selected_phone=selected_phone,
+                                   current_sort=(sort or ''),
+                                   current_direction=direction)
         finally:
             db.close()
 
     @app.route('/conversations/<phone>')
     @login_required
     def conversation_view(phone):
+        direction = request.args.get('direction') or 'asc'
         db = DB()
         try:
             messages = db.SQL_full_conversation_per_phone(phone)
             q = request.args.get('q')
             sort = request.args.get('sort')
-            conversations = db.fetch_conversations(q=q if q else None, sort=sort)
+            conversations = db.fetch_conversations(q=q if q else None, sort=sort, direction=direction)
             # print(conversations)
             print('Selected: ', phone)
 
@@ -233,7 +238,8 @@ def create_app() -> Flask:
                 messages=messages,
                 conversations=conversations,
                 conversations_count=len(conversations),
-                current_sort=(sort or ''))
+                current_sort=(sort or ''),
+                current_direction=direction)
         finally:
             db.close()
 

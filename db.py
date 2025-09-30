@@ -84,7 +84,12 @@ class DB:
                 out.append({'role': role, 'content': content, 'sent_at': sent_at})
             return out
 
-    def fetch_conversations(self, q: Optional[str] = None, sort: Optional[str] = None) -> List[Dict]:
+    def fetch_conversations(
+        self,
+        q: Optional[str] = None,
+        sort: Optional[str] = None,
+        direction: Optional[str] = None,
+    ) -> List[Dict]:
         """
         Return one row per phone_number (latest message), optionally filtered by query `q`.
         Supports optional client-side sorting via `sort` in {"name", "number", "status"}.
@@ -136,12 +141,18 @@ class DB:
             })
 
         sort_key = (sort or "").lower()
+        direction_key = (direction or "asc").lower()
+        if direction_key not in ("asc", "desc"):
+            direction_key = "asc"
+
+        reverse = direction_key == "desc"
+
         if sort_key == "name":
-            items.sort(key=lambda item: (item["display_name"] or "").lower())
+            items.sort(key=lambda item: (item["display_name"] or "").lower(), reverse=reverse)
         elif sort_key == "number":
-            items.sort(key=lambda item: item["phone_number"])
+            items.sort(key=lambda item: item["phone_number"], reverse=reverse)
         elif sort_key == "status":
-            items.sort(key=lambda item: item["status"] or "")
+            items.sort(key=lambda item: item["status"] or "", reverse=reverse)
 
         return items
 

@@ -52,6 +52,7 @@
             </div>
             <form id="conversations-state" style="display:none;">
                 <input type="hidden" name="sort" id="current-sort" value="{{ current_sort }}">
+                <input type="hidden" name="direction" id="current-sort-direction" value="{{ current_direction or 'asc' }}">
                 <input type="hidden" name="selected_phone" id="current-selected-phone" value="{{ selected_phone or '' }}">
             </form>
             <div class="list-scroll">
@@ -60,37 +61,37 @@
                         <tr>
                             <th>
                                 <button type="button"
-                                        class="sort-btn{% if current_sort == 'name' %} active{% endif %}"
+                                        class="sort-btn{% if current_sort == 'name' %} active{% if current_direction == 'desc' %} desc{% else %} asc{% endif %}{% endif %}"
+                                        data-sort-field="name"
                                         hx-get="/conversations"
                                         hx-target="#conversations-body"
                                         hx-swap="innerHTML"
                                         hx-include="#search, #conversations-state"
-                                        hx-vals='{"sort":"name"}'
-                                        hx-on="click: document.getElementById('current-sort').value='name'">
+                                        hx-on="click: handleSortClick(event, 'name')">
                                     Name
                                 </button>
                             </th>
                             <th>
                                 <button type="button"
-                                        class="sort-btn{% if current_sort == 'number' %} active{% endif %}"
+                                        class="sort-btn{% if current_sort == 'number' %} active{% if current_direction == 'desc' %} desc{% else %} asc{% endif %}{% endif %}"
+                                        data-sort-field="number"
                                         hx-get="/conversations"
                                         hx-target="#conversations-body"
                                         hx-swap="innerHTML"
                                         hx-include="#search, #conversations-state"
-                                        hx-vals='{"sort":"number"}'
-                                        hx-on="click: document.getElementById('current-sort').value='number'">
+                                        hx-on="click: handleSortClick(event, 'number')">
                                     Number
                                 </button>
                             </th>
                             <th>
                                 <button type="button"
-                                        class="sort-btn{% if current_sort == 'status' %} active{% endif %}"
+                                        class="sort-btn{% if current_sort == 'status' %} active{% if current_direction == 'desc' %} desc{% else %} asc{% endif %}{% endif %}"
+                                        data-sort-field="status"
                                         hx-get="/conversations"
                                         hx-target="#conversations-body"
                                         hx-swap="innerHTML"
                                         hx-include="#search, #conversations-state"
-                                        hx-vals='{"sort":"status"}'
-                                        hx-on="click: document.getElementById('current-sort').value='status'">
+                                        hx-on="click: handleSortClick(event, 'status')">
                                     Status
                                 </button>
                             </th>
@@ -121,6 +122,48 @@
     <!-- At bottom of <body> -->
     <div id="modal-container"></div>
     <script>
+      function setSortButtonState(activeField, direction) {
+        var buttons = document.querySelectorAll('.sort-btn');
+        var normalizedDirection = (direction || 'asc').toLowerCase();
+        buttons.forEach(function(btn) {
+          btn.classList.remove('active', 'asc', 'desc');
+          if (btn.dataset && btn.dataset.sortField === activeField) {
+            btn.classList.add('active');
+            btn.classList.add(normalizedDirection === 'desc' ? 'desc' : 'asc');
+          }
+        });
+      }
+
+      window.handleSortClick = function(event, field) {
+        var sortInput = document.getElementById('current-sort');
+        var directionInput = document.getElementById('current-sort-direction');
+        if (!sortInput || !directionInput) {
+          return;
+        }
+
+        var currentField = sortInput.value;
+        var currentDirection = (directionInput.value || 'asc').toLowerCase();
+        var newDirection = 'asc';
+
+        if (currentField === field) {
+          newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+        }
+
+        sortInput.value = field;
+        directionInput.value = newDirection;
+        setSortButtonState(field, newDirection);
+      };
+
+      (function initializeSortButtons() {
+        var sortInput = document.getElementById('current-sort');
+        if (!sortInput || !sortInput.value) {
+          return;
+        }
+        var directionInput = document.getElementById('current-sort-direction');
+        var directionValue = directionInput && directionInput.value ? directionInput.value : 'asc';
+        setSortButtonState(sortInput.value, directionValue);
+      })();
+
       (function() {
         function getConversationRowCount() {
           var tbody = document.getElementById('conversations-body');
@@ -163,6 +206,7 @@
 
         var searchInput = document.getElementById('search');
         var sortInput = document.getElementById('current-sort');
+        var directionInput = document.getElementById('current-sort-direction');
         var selectedInput = document.getElementById('current-selected-phone');
 
         if (detail.phone && selectedInput) {
@@ -175,6 +219,9 @@
         }
         if (sortInput && sortInput.value) {
           values.sort = sortInput.value;
+        }
+        if (directionInput && directionInput.value) {
+          values.direction = directionInput.value;
         }
         if (selectedInput && selectedInput.value) {
           values.selected_phone = selectedInput.value;
@@ -190,6 +237,9 @@
           var queryParts = [];
           if (sortInput && sortInput.value) {
             queryParts.push('sort=' + encodeURIComponent(sortInput.value));
+          }
+          if (directionInput && directionInput.value) {
+            queryParts.push('direction=' + encodeURIComponent(directionInput.value));
           }
           if (searchInput && searchInput.value) {
             queryParts.push('q=' + encodeURIComponent(searchInput.value));

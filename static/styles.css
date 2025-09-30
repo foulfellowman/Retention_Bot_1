@@ -178,6 +178,16 @@ z-index: 1000;
     text-decoration: underline;
 }
 
+.sort-btn.active.asc::after {
+    content: ' \2191';
+    font-size: 0.8em;
+}
+
+.sort-btn.active.desc::after {
+    content: ' \2193';
+    font-size: 0.8em;
+}
+
 .sort-btn:focus {
     outline: 1px dashed #667;
     outline-offset: 2px;
