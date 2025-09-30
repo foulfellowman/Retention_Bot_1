@@ -2,7 +2,7 @@ import json
 import os
 import psycopg2
 from psycopg2 import sql
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any, Sequence
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -107,10 +107,12 @@ class DB:
                   ON ct.phone_number = m.phone_number
                 WHERE (%s IS NULL
                        OR m.phone_number ILIKE '%%' || %s || '%%'
-                       OR COALESCE((m.message_data->>'content'), '') ILIKE '%%' || %s || '%%')
+                       OR COALESCE((m.message_data->>'content'), '') ILIKE '%%' || %s || '%%'
+                       OR ct.first_name ILIKE '%%' || %s || '%%'
+                       OR ct.last_name ILIKE '%%' || %s || '%%')
                 ORDER BY m.phone_number, last_at DESC;
                 """,
-                (q, q, q),
+                (q, q, q, q, q),
             )
             rows = cur.fetchall()
 
