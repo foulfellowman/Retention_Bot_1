@@ -95,11 +95,11 @@ def create_app() -> Flask:
                 next_url = request.args.get("next")
                 if next_url and not next_url.startswith("/"):
                     next_url = None
-                return redirect(next_url or url_for("settings"))
+                return redirect(next_url or url_for("index"))
             form.password.errors.append("Invalid username or password.")
         return render_template("login.html", form=form)
 
-    @app.route("/logout")
+    @app.route("/logout", methods=["POST"])
     @login_required
     def logout():
         logout_user()
