@@ -247,6 +247,7 @@ def create_app() -> Flask:
     @login_required
     def conversation_edit(phone):
         allowed_states = ['start', 'interested', 'action_sqft', 'confused', 'not_interested', 'follow_up', 'pause', 'stop', 'done']
+        interested_states = {'interested', 'action_sqft'}
         db = DB()
 
         def fetch_current_state():
@@ -273,21 +274,23 @@ def create_app() -> Flask:
                     )
 
                 cur = db.conn.cursor()
+                mark_interested = new_state in interested_states
                 cur.execute(
                     """
                     UPDATE public.fsm_state
-                    SET statename = %s
+                    SET statename = %s,
+                        was_interested = COALESCE(was_interested, FALSE) OR %s
                     WHERE phone_number = %s
                     """,
-                    (new_state, phone)
+                    (new_state, mark_interested, phone)
                 )
                 if cur.rowcount == 0:
                     cur.execute(
                         """
-                        INSERT INTO public.fsm_state (phone_number, statename)
-                        VALUES (%s, %s)
+                        INSERT INTO public.fsm_state (phone_number, statename, was_interested)
+                        VALUES (%s, %s, %s)
                         """,
-                        (phone, new_state)
+                        (phone, new_state, mark_interested)
                     )
                 db.conn.commit()
                 cur.close()

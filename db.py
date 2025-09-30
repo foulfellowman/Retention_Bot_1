@@ -103,6 +103,7 @@ class DB:
                        COALESCE((m.message_data->>'content'), m.body) AS last_text,
                        MAX(m.sent_at) OVER (PARTITION BY m.phone_number) AS last_at,
                        fs.statename AS fsm_state,
+                       COALESCE(fs.was_interested, false) AS was_interested,
                        ct.first_name,
                        ct.last_name
                 FROM public.message AS m
@@ -123,7 +124,7 @@ class DB:
 
         items: List[Dict] = []
 
-        for phone, last_role, last_text, last_at, fsm_state, first_name, last_name in rows:
+        for phone, last_role, last_text, last_at, fsm_state, was_interested, first_name, last_name in rows:
             name_parts = []
             if first_name and first_name.strip():
                 name_parts.append(first_name.strip())
@@ -138,6 +139,7 @@ class DB:
                 "last_message_at": last_at,
                 "last_snippet": (last_text or "")[:80],
                 "last_role": last_role,
+                "was_interested": bool(was_interested),
             })
 
         sort_key = (sort or "").lower()

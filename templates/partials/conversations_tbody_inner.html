@@ -4,7 +4,14 @@
         hx-include="#search, #conversations-state"
         hx-on="click: document.querySelectorAll('#conversations-body tr').forEach(e => e.classList.remove('active')); this.classList.add('active'); document.getElementById('current-selected-phone').value='{{ c.phone_number }}'"
         class="{% if c.phone_number == selected_phone %}active{% endif %}">
-      <td>{{ c.display_name or 'Unknown' }}</td>
+      <td>
+        <span class="conversation-name">
+          {% if c.was_interested %}
+            <span class="interested-indicator" title="Previously showed interest" aria-hidden="true"></span>
+          {% endif %}
+          {{ c.display_name or 'Unknown' }}
+        </span>
+      </td>
       <td>{{ c.phone_number }}</td>
       <td>{{ c.status }}</td>
       <td>

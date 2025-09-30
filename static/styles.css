@@ -193,3 +193,17 @@ z-index: 1000;
     outline-offset: 2px;
 }
 
+
+.conversation-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.interested-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #2f855a;
+  box-shadow: 0 0 0 1px #ffffff;
+}

@@ -21,6 +21,7 @@ class UserContext:
         self._phone_number = phone_number
         self._ensure_phone_in_db()
         self.fsm = IntentionFlow(name=phone_number)
+        self._load_existing_fsm_flags()
 
     def trigger_event(self, event_name: str, verbose=False, **kwargs):
         """
@@ -73,65 +74,92 @@ class UserContext:
         Update the FSM's current state for this phone number.
         If the phone number doesn't exist in fsm_state, insert it.
         """
+        was_interested_flag = bool(getattr(self.fsm, "was_ever_interested", False))
         db_connection = DB()
         cur = db_connection.conn.cursor()
 
-        # Try to update
-        cur.execute(
-            """
-            UPDATE fsm_state
-            SET statename = %s
-            WHERE phone_number = %s
-            """,
-            (state_name, self._phone_number)
-        )
-
-        # If no row was updated, insert instead
-        if cur.rowcount == 0:
+        try:
             cur.execute(
                 """
-                INSERT INTO fsm_state (phone_number, statename)
-                VALUES (%s, %s)
+                UPDATE fsm_state
+                SET statename = %s,
+                    was_interested = COALESCE(was_interested, FALSE) OR %s
+                WHERE phone_number = %s
                 """,
-                (self._phone_number, state_name)
+                (state_name, was_interested_flag, self._phone_number)
             )
 
-        db_connection.conn.commit()
-        cur.close()
-        db_connection.close()
+            if cur.rowcount == 0:
+                cur.execute(
+                    """
+                    INSERT INTO fsm_state (phone_number, statename, was_interested)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (self._phone_number, state_name, was_interested_flag)
+                )
+
+            db_connection.conn.commit()
+        finally:
+            cur.close()
+            db_connection.close()
 
     def get_current_state(self) -> str:
         """
-        Return the FSM's current state name from the DB,
-        inserting a row if it doesn't exist.
+        Return the current FSM state and ensure the DB reflects it.
+        If the row doesn't exist it is inserted; if it exists but is
+        different from the in-memory FSM state, it is updated.
         """
+        current_mem_state = self.fsm.state
+        current_interest = bool(getattr(self.fsm, "was_ever_interested", False))
+
         db_connection = DB()
         cur = db_connection.conn.cursor()
 
-        # Check if a state already exists
-        cur.execute(
-            "SELECT statename FROM fsm_state WHERE phone_number = %s",
-            (self._phone_number,)
-        )
-        row = cur.fetchone()
-
-        if not row:
-            # Initialize state
-            initial_state = self.fsm.state  # or hardcode "start"
+        try:
             cur.execute(
-                "INSERT INTO fsm_state (phone_number, statename) VALUES (%s, %s)",
-                (self._phone_number, str(initial_state).strip())
+                "SELECT statename, COALESCE(was_interested, FALSE) FROM fsm_state WHERE phone_number = %s",
+                (self._phone_number,)
             )
-            db_connection.conn.commit()
-            state = initial_state
-        else:
-            # Existing state found
-            state = row[0]
-            state = str(state).strip()
+            row = cur.fetchone()
 
-        cur.close()
-        db_connection.close()
-        return state
+            if not row:
+                cur.execute(
+                    "INSERT INTO fsm_state (phone_number, statename, was_interested) VALUES (%s, %s, %s)",
+                    (self._phone_number, current_mem_state, current_interest)
+                )
+                db_connection.conn.commit()
+                state = current_mem_state
+            else:
+                existing_state, existing_interest = row
+                if existing_interest:
+                    self.fsm.was_ever_interested = True
+
+                if existing_state != current_mem_state:
+                    cur.execute(
+                        """
+                        UPDATE fsm_state
+                        SET statename = %s,
+                            was_interested = COALESCE(was_interested, FALSE) OR %s
+                        WHERE phone_number = %s
+                        """,
+                        (current_mem_state, current_interest, self._phone_number)
+                    )
+                    db_connection.conn.commit()
+                    state = current_mem_state
+                else:
+                    state = existing_state
+                    if current_interest and not existing_interest:
+                        cur.execute(
+                            "UPDATE fsm_state SET was_interested = TRUE WHERE phone_number = %s",
+                            (self._phone_number,)
+                        )
+                        db_connection.conn.commit()
+
+            return state
+        finally:
+            cur.close()
+            db_connection.close()
+
 
     def _ensure_phone_in_db(self):
         db_connection = DB()
@@ -143,6 +171,22 @@ class UserContext:
             db_connection.conn.commit()
         cur.close()
         db_connection.close()
+
+    def _load_existing_fsm_flags(self):
+        db_connection = DB()
+        cur = db_connection.conn.cursor()
+        try:
+            cur.execute(
+                "SELECT COALESCE(was_interested, FALSE) FROM fsm_state WHERE phone_number = %s",
+                (self._phone_number,)
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                self.fsm.was_ever_interested = True
+        finally:
+            cur.close()
+            db_connection.close()
+
 
     # -------- TWILIO --------
     def set_twilio_sid(self, sid: str):
