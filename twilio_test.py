@@ -15,6 +15,12 @@ class TwilioSMSClient:
             body=message
         )
 
+    def verify_credentials(self) -> None:
+        if not (self._account_sid and self._auth_token):
+            raise RuntimeError("Twilio credentials are not fully configured.")
+        # Fetch account data to ensure the SID/token pair is usable
+        self._client.api.accounts(self._account_sid).fetch()
+
     def get_client(self):
         return self._client
 
@@ -31,5 +37,3 @@ class TwilioSMSClient:
     def set_token(self, new_token: str):
         self._auth_token = new_token
         self._client = Client(self._account_sid, self._auth_token)
-
-

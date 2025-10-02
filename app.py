@@ -36,15 +36,30 @@ def create_app() -> Flask:
     login_manager.init_app(app)
 
     # Build dependencies once per process; store on app config
+    twilio_sid = os.getenv("TWILIO_SID")
+    twilio_token = os.getenv("TWILIO_TOKEN")
+    twilio_messaging_sid = os.getenv("TWILIO_MESSAGINGID")
+
+    twilio_client = TwilioSMSClient(
+        twilio_sid,
+        twilio_token,
+        twilio_messaging_sid,
+    )
+    try:
+        twilio_client.verify_credentials()
+        # print('[CONFIG] Twilio Valid')
+    except RuntimeError as exc:
+        app.logger.warning("Twilio credentials not fully configured: %s", exc)
+    except Exception as exc:
+        app.logger.error("Twilio credential verification failed", exc_info=exc)
+    else:
+        app.logger.info("Twilio credentials verified successfully.")
+
     services = {
         "gpt": GPTClient(
             max_tokens=int(os.getenv("max_tokens"))
         ),
-        "twilio": TwilioSMSClient(
-            os.getenv("TWILIO_SID"),
-            os.getenv("TWILIO_TOKEN"),
-            os.getenv("TWILIO_MESSAGINGID"),
-        ),
+        "twilio": twilio_client,
         "admin_user": Admin(
             username=os.getenv("ADMIN_USERNAME", "admin"),
             password=os.getenv("ADMIN_PASSWORD", "pass123"),
