@@ -1,23 +1,224 @@
+import atexit
 import json
 import os
-import psycopg2
-from psycopg2 import sql
-from typing import List, Dict, Optional, Any, Sequence
-from dotenv import load_dotenv
+import threading
+from contextlib import contextmanager
 from datetime import datetime
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
+
+import psycopg2
+from dotenv import load_dotenv
+from psycopg2 import sql
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine, URL
+from sqlalchemy.pool import NullPool, QueuePool, StaticPool
 
 load_dotenv()
 
 
+_engine_lock = threading.Lock()
+_engine: Optional[Engine] = None
+
+
+def _env_flag(name: str) -> Optional[bool]:
+    value = os.getenv(name)
+    if value is None:
+        return None
+    return value.strip().lower() in {"1", "true", "t", "yes", "on"}
+
+
+def _build_engine_url() -> Union[str, URL]:
+    url = (
+        os.getenv("SQLALCHEMY_DATABASE_URI")
+        or os.getenv("PG_DSN")
+        or os.getenv("PG_URL")
+        or os.getenv("DATABASE_URL")
+        or os.getenv("PGBOUNCER_DSN")
+    )
+    if url:
+        return url
+
+    driver = os.getenv("PG_DRIVER", "postgresql+psycopg2")
+    username = os.getenv("PG_USER")
+    password = os.getenv("PG_PASS") or os.getenv("PG_PASSWORD")
+    host = os.getenv("PG_HOST", "localhost")
+    port_raw = os.getenv("PG_PORT")
+    database = os.getenv("PG_DB")
+
+    port: Optional[int] = None
+    if port_raw:
+        try:
+            port = int(port_raw)
+        except ValueError:
+            port = None
+
+    return URL.create(
+        drivername=driver,
+        username=username,
+        password=password,
+        host=host,
+        port=port,
+        database=database,
+    )
+
+
+def _build_connect_args() -> Dict[str, Any]:
+    optional_env_map = {
+        "PG_SSLMODE": "sslmode",
+        "PG_TARGET_SESSION_ATTRS": "target_session_attrs",
+        "PG_CONNECT_TIMEOUT": "connect_timeout",
+        "PG_APPLICATION_NAME": "application_name",
+        "PG_APP_NAME": "application_name",
+        "PG_OPTIONS": "options",
+    }
+
+    connect_args: Dict[str, Any] = {}
+    for env_name, param_name in optional_env_map.items():
+        value = os.getenv(env_name)
+        if value:
+            if param_name == "connect_timeout":
+                try:
+                    connect_args[param_name] = int(value)
+                except ValueError:
+                    connect_args[param_name] = value
+            else:
+                connect_args[param_name] = value
+
+    return connect_args
+
+
+_POOL_CLASS_ALIASES = {
+    "null": NullPool,
+    "nullpool": NullPool,
+    "queue": QueuePool,
+    "queuepool": QueuePool,
+    "static": StaticPool,
+    "staticpool": StaticPool,
+}
+
+
+def _resolve_pool_class():
+    choice = (
+        os.getenv("SQLALCHEMY_POOL_CLASS")
+        or os.getenv("DB_POOL_CLASS")
+        or ""
+    ).strip().lower()
+    if choice:
+        return _POOL_CLASS_ALIASES.get(choice, NullPool)
+
+    if any(
+        flag is True
+        for flag in (
+            _env_flag("SQLALCHEMY_POOL_ENABLED"),
+            _env_flag("SQLALCHEMY_QUEUE_POOL"),
+            _env_flag("DB_POOL_ENABLED"),
+        )
+    ):
+        return QueuePool
+
+    return NullPool
+
+
+def get_engine() -> Engine:
+    global _engine
+    with _engine_lock:
+        if _engine is not None:
+            return _engine
+
+        url = _build_engine_url()
+        connect_args = _build_connect_args()
+        pool_class = _resolve_pool_class()
+        engine_kwargs: Dict[str, Any] = {"poolclass": pool_class, "future": True}
+
+        echo_flag = _env_flag("SQLALCHEMY_ECHO")
+        if echo_flag is True:
+            engine_kwargs["echo"] = True
+
+        pre_ping_flag = _env_flag("SQLALCHEMY_POOL_PRE_PING")
+        if pre_ping_flag is not None:
+            engine_kwargs["pool_pre_ping"] = pre_ping_flag
+
+        if connect_args:
+            engine_kwargs["connect_args"] = connect_args
+
+        if pool_class is QueuePool:
+            pool_size = os.getenv("SQLALCHEMY_POOL_SIZE") or os.getenv("PG_POOL_MIN") or "5"
+            max_overflow = os.getenv("SQLALCHEMY_MAX_OVERFLOW") or os.getenv("PG_POOL_MAX_OVERFLOW") or "10"
+            pool_timeout = os.getenv("SQLALCHEMY_POOL_TIMEOUT") or "30"
+            try:
+                engine_kwargs["pool_size"] = int(pool_size)
+            except ValueError:
+                engine_kwargs["pool_size"] = 5
+            try:
+                engine_kwargs["max_overflow"] = int(max_overflow)
+            except ValueError:
+                engine_kwargs["max_overflow"] = 10
+            try:
+                engine_kwargs["pool_timeout"] = int(pool_timeout)
+            except ValueError:
+                engine_kwargs["pool_timeout"] = 30
+
+        _engine = create_engine(url, **engine_kwargs)
+        return _engine
+
+
+def dispose_engine() -> None:
+    global _engine
+    with _engine_lock:
+        engine = _engine
+        _engine = None
+    if engine is not None:
+        engine.dispose()
+
+
+atexit.register(dispose_engine)
+
+
+def acquire_connection():
+    engine = get_engine()
+    return engine.raw_connection()
+
+
+def release_connection(conn) -> None:
+    if conn is None:
+        return
+    try:
+        conn.close()
+    except Exception:
+        pass
+
+
+@contextmanager
+def connection_scope() -> Iterator[Any]:
+    conn = acquire_connection()
+    try:
+        yield conn
+    except Exception:
+        try:
+            conn.rollback()
+        except psycopg2.Error:
+            pass
+        raise
+    finally:
+        release_connection(conn)
+
+
 class DB:
     def __init__(self):
-        self.conn = psycopg2.connect(
-            host=os.getenv("PG_HOST"),
-            port=os.getenv("PG_PORT"),
-            dbname=os.getenv("PG_DB"),
-            user=os.getenv("PG_USER"),
-            password=os.getenv("PG_PASS")
-        )
+        self.conn = acquire_connection()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if exc_type:
+            try:
+                if self.conn and not getattr(self.conn, "closed", False):
+                    self.conn.rollback()
+            except psycopg2.Error:
+                pass
+        self.close()
+        return False
 
     def quick_query(self):
         with self.conn.cursor() as cur:
@@ -29,7 +230,9 @@ class DB:
             print(cur.fetchall())
 
     def close(self):
-        self.conn.close()
+        if getattr(self, "conn", None) is not None:
+            release_connection(self.conn)
+            self.conn = None
 
     def insert_message(self, phone, user_input, twilio_sid=None):
         cur = self.conn.cursor()
@@ -94,6 +297,7 @@ class DB:
         Return one row per phone_number (latest message), optionally filtered by query `q`.
         Supports optional client-side sorting via `sort` in {"name", "number", "status"}.
         """
+        print(q)
         with self.conn.cursor() as cur:
             cur.execute(
                 """
