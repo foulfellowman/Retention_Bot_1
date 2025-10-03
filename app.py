@@ -62,7 +62,7 @@ def create_app() -> Flask:
         "twilio": twilio_client,
         "admin_user": Admin(
             username=os.getenv("ADMIN_USERNAME", "admin"),
-            password=os.getenv("ADMIN_PASSWORD", "pass123"),
+            password=os.getenv("ADMIN_PASSWORD"),
         ),
     }
     app.config["services"] = services
