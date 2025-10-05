@@ -1,100 +1,115 @@
-from dataclasses import dataclass
+from __future__ import annotations
 
-from openai import OpenAI
-from dotenv import load_dotenv
 import os
+import sys
+from dataclasses import dataclass
+from typing import Callable
+
+from dotenv import load_dotenv
 
 from db import DB, insert_message, insert_message_from_gpt
 from gpt import GPTClient
+from models import FSMState, Message
+from sqlalchemy import delete
 from user_context import UserContext
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "t", "yes", "on"}
+
+
 # ---------- config / wiring ----------
-def load_config():
+def load_config() -> dict:
     load_dotenv()
+    max_tokens = (
+        os.getenv("max_tokens")
+        or os.getenv("MAX_TOKENS")
+        or "300"
+    )
     return {
-        "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
-        "READBACK_LIMIT": int(os.getenv("READBACK_LIMIT", "15")),
-        "MAX_TOKENS": int(os.getenv("MAX_TOKENS", "300")),
-        "DEFAULT_PHONE": os.getenv("DEFAULT_PHONE", "4802982031"),
+        "openai_api_key": os.environ["OPENAI_API_KEY"],
+        "default_phone": os.getenv("DEFAULT_PHONE", "4802982031"),
+        "max_tokens": int(max_tokens),
+        "temperature": float(os.getenv("OPENAI_TEMPERATURE", "0")),
+        "intro_message": os.getenv(
+            "CONSOLE_INTRO_MESSAGE",
+            "Hey! Quick check-in -- are you still seeing any pest activity?",
+        ),
+        "reset_on_start": _env_flag("CONSOLE_RESET_STATE", True),
     }
 
 
-def build_gpt_client(max_tokens: int) -> GPTClient:
-    # if GPTClient accepts an OpenAI client & params, inject here
-    gpt = GPTClient()
-    gpt.max_tokens = max_tokens  # or pass via constructor if supported
-    return gpt
+def build_gpt_client(cfg: dict) -> GPTClient:
+    return GPTClient(
+        temperature=cfg["temperature"],
+        max_tokens=cfg["max_tokens"],
+    )
 
 
 def build_user(phone: str) -> UserContext:
-    user = UserContext(phone)
-    # seed/demo data; move to a fixture/factory if you don't want this in prod
-    user.set_user_info("Billy", ["Rodent Control", "Termite Treatment"], 93, "Termite Treatment")
-    return user
+    return UserContext(phone)
 
 
 # ---------- app core ----------
 @dataclass
 class ConversationApp:
     phone: str
-    db: DB
     gpt: GPTClient
     user: UserContext
+    db_factory: Callable[[], DB] = DB
+    intro_message: str | None = None
 
-    def reset_state(self):
-        """Reset DB + in-memory context for a clean test run.
-        This purges prior messages and FSM state for the phone, and clears GPT context.
-        Intended for local testing/simulation only.
-        """
-        # Clear GPT in-memory context
+    def reset_state(self) -> None:
+        """Reset persisted state for this phone and clear GPT context."""
+        with self.db_factory() as db:
+            session = db.session
+            session.execute(delete(Message).where(Message.phone_number == self.phone))
+            session.execute(delete(FSMState).where(FSMState.phone_number == self.phone))
+            session.commit()
+
+        self.gpt.set_context(self.phone, [])
+        self.user = UserContext(self.phone)
+
+    def setup(self) -> None:
+        # ensure context is empty and FSM row exists if needed
+        self.gpt.set_context(self.phone, [])
         try:
-            self.gpt.set_context(self.phone, [])
+            self.user.get_current_state()
         except Exception:
             pass
-
-        # Purge DB rows for this phone (messages + FSM state)
-        try:
-            cur = self.db.conn.cursor()
-            cur.execute("DELETE FROM public.message WHERE phone_number = %s", (self.phone,))
-            cur.execute("DELETE FROM public.fsm_state WHERE phone_number = %s", (self.phone,))
-            self.db.conn.commit()
-            try:
-                cur.close()
-            except Exception:
-                pass
-        except Exception:
-            # If DB is unavailable in certain test contexts, ignore
-            pass
-
-    def setup(self):
-        # prime GPT context from current user info
-
-        # String is passed because there is no incoming sms
-        self.gpt.set_context(self.phone, self.user.turn_into_gpt_context(incoming_sms=""))
 
     def should_exit_stateful(self) -> bool:
         return self.user.get_current_state() in {"pause", "complete_flow", "user_stopped"}
 
-    def handle_stop(self, text: str):
+    def handle_stop(self, text: str) -> None:
         self.user.trigger_event("user_stopped", verbose=True)
-        insert_message(self.db, self.phone, text)
+        with self.db_factory() as db:
+            insert_message(db, self.phone, text)
 
     def handle_user_turn(self, text: str) -> str:
-        insert_message(self.db, self.phone, text)
+        with self.db_factory() as db:
+            insert_message(db, self.phone, text)
+            reply = self.gpt.generate_response(text, self.user, db)
+        return reply
 
-        return self.gpt.generate_response(text, self.user, self.db)
-
-    def loop(self):
+    def loop(self) -> None:
         print("\n--- GPT SMS Conversation Simulator ---")
-        introg_msg = "\nGPT: Hey! Quick check-in—are you still seeing any pest activity?"
-        insert_message_from_gpt(self.db, self.phone, introg_msg)
-        print(introg_msg)
+
+        if self.intro_message:
+            with self.db_factory() as db:
+                insert_message_from_gpt(db, self.phone, self.intro_message)
+            print(f"GPT: {self.intro_message}")
+
         while True:
             if self.should_exit_stateful():
                 break
 
             user_input = input("You: ").strip()
+            if not user_input:
+                continue
             if user_input.lower() in {"exit", "quit", "stop"}:
                 self.handle_stop(user_input)
                 break
@@ -106,25 +121,30 @@ class ConversationApp:
 
 
 # ---------- entrypoint ----------
-def main():
+def main() -> None:
     cfg = load_config()
-    gpt = build_gpt_client(cfg["MAX_TOKENS"])
-    user = build_user(cfg["DEFAULT_PHONE"])
-    db = DB()
+    phone = cfg["default_phone"]
+    if len(sys.argv) > 1:
+        phone = sys.argv[1]
 
-    app = ConversationApp(phone=cfg["DEFAULT_PHONE"], db=db, gpt=gpt, user=user)
-    # Always reset state for this CLI simulator (used for testing)
-    app.reset_state()
+    gpt = build_gpt_client(cfg)
+    user = build_user(phone)
+
+    app = ConversationApp(
+        phone=phone,
+        gpt=gpt,
+        user=user,
+        intro_message=cfg["intro_message"],
+    )
+
+    if cfg["reset_on_start"]:
+        app.reset_state()
     app.setup()
 
     try:
         app.loop()
-    finally:
-        # DB() exposes .conn; ensure cursor(s) are context-managed where created
-        try:
-            db.close()
-        except Exception:
-            pass
+    except KeyboardInterrupt:
+        print("\nExiting.")
 
 
 if __name__ == "__main__":
