@@ -2,6 +2,7 @@ from typing import Dict, List, Optional
 
 from db import DB
 from fsm import IntentionFlow
+from models import FSMState, Phone
 
 
 class UserContext:
@@ -76,31 +77,22 @@ class UserContext:
         """
         was_interested_flag = bool(getattr(self.fsm, "was_ever_interested", False))
         db_connection = DB()
-        cur = db_connection.conn.cursor()
+        session = db_connection.session
 
         try:
-            cur.execute(
-                """
-                UPDATE fsm_state
-                SET statename = %s,
-                    was_interested = COALESCE(was_interested, FALSE) OR %s
-                WHERE phone_number = %s
-                """,
-                (state_name, was_interested_flag, self._phone_number)
-            )
-
-            if cur.rowcount == 0:
-                cur.execute(
-                    """
-                    INSERT INTO fsm_state (phone_number, statename, was_interested)
-                    VALUES (%s, %s, %s)
-                    """,
-                    (self._phone_number, state_name, was_interested_flag)
+            state = session.get(FSMState, self._phone_number)
+            if state:
+                state.statename = state_name
+                state.was_interested = bool(state.was_interested) or was_interested_flag
+            else:
+                state = FSMState(
+                    phone_number=self._phone_number,
+                    statename=state_name,
+                    was_interested=was_interested_flag,
                 )
-
-            db_connection.conn.commit()
+                session.add(state)
+            session.commit()
         finally:
-            cur.close()
             db_connection.close()
 
     def get_current_state(self) -> str:
@@ -113,80 +105,59 @@ class UserContext:
         current_interest = bool(getattr(self.fsm, "was_ever_interested", False))
 
         db_connection = DB()
-        cur = db_connection.conn.cursor()
+        session = db_connection.session
 
         try:
-            cur.execute(
-                "SELECT statename, COALESCE(was_interested, FALSE) FROM fsm_state WHERE phone_number = %s",
-                (self._phone_number,)
-            )
-            row = cur.fetchone()
-
-            if not row:
-                cur.execute(
-                    "INSERT INTO fsm_state (phone_number, statename, was_interested) VALUES (%s, %s, %s)",
-                    (self._phone_number, current_mem_state, current_interest)
+            state = session.get(FSMState, self._phone_number)
+            if state is None:
+                state = FSMState(
+                    phone_number=self._phone_number,
+                    statename=current_mem_state,
+                    was_interested=current_interest,
                 )
-                db_connection.conn.commit()
-                state = current_mem_state
-            else:
-                existing_state, existing_interest = row
-                if existing_interest:
-                    self.fsm.was_ever_interested = True
+                session.add(state)
+                session.commit()
+                return current_mem_state
 
-                if existing_state != current_mem_state:
-                    cur.execute(
-                        """
-                        UPDATE fsm_state
-                        SET statename = %s,
-                            was_interested = COALESCE(was_interested, FALSE) OR %s
-                        WHERE phone_number = %s
-                        """,
-                        (current_mem_state, current_interest, self._phone_number)
-                    )
-                    db_connection.conn.commit()
-                    state = current_mem_state
-                else:
-                    state = existing_state
-                    if current_interest and not existing_interest:
-                        cur.execute(
-                            "UPDATE fsm_state SET was_interested = TRUE WHERE phone_number = %s",
-                            (self._phone_number,)
-                        )
-                        db_connection.conn.commit()
+            if state.was_interested:
+                self.fsm.was_ever_interested = True
 
-            return state
+            updated = False
+            if state.statename != current_mem_state:
+                state.statename = current_mem_state
+                updated = True
+
+            if current_interest and not state.was_interested:
+                state.was_interested = True
+                updated = True
+
+            if updated:
+                session.commit()
+
+            return state.statename
         finally:
-            cur.close()
             db_connection.close()
-
 
     def _ensure_phone_in_db(self):
         db_connection = DB()
-        cur = db_connection.conn.cursor()
+        session = db_connection.session
 
-        cur.execute("SELECT 1 FROM phone WHERE phone_number = %s", (self._phone_number,))
-        if not cur.fetchone():
-            cur.execute("INSERT INTO phone (phone_number) VALUES (%s)", (self._phone_number,))
-            db_connection.conn.commit()
-        cur.close()
-        db_connection.close()
+        try:
+            if session.get(Phone, self._phone_number) is None:
+                session.add(Phone(phone_number=self._phone_number))
+                session.commit()
+        finally:
+            db_connection.close()
 
     def _load_existing_fsm_flags(self):
         db_connection = DB()
-        cur = db_connection.conn.cursor()
+        session = db_connection.session
         try:
-            cur.execute(
-                "SELECT COALESCE(was_interested, FALSE) FROM fsm_state WHERE phone_number = %s",
-                (self._phone_number,)
-            )
-            row = cur.fetchone()
-            if row and row[0]:
+            state = session.get(FSMState, self._phone_number)
+            if state and state.was_interested:
                 self.fsm.was_ever_interested = True
         finally:
-            cur.close()
             db_connection.close()
-
 
     # -------- TWILIO --------
     def set_twilio_sid(self, sid: str):

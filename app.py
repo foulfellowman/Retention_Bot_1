@@ -11,7 +11,9 @@ from dotenv import load_dotenv
 
 from admin import Admin
 from db import DB, insert_message
+from models import FSMState
 from gpt import GPTClient
+from reach_out import ReachOut
 from twilio_test import TwilioSMSClient
 from user_context import UserContext
 
@@ -268,14 +270,8 @@ def create_app() -> Flask:
         db = DB()
 
         def fetch_current_state():
-            cur = db.conn.cursor()
-            cur.execute(
-                'SELECT statename FROM public.fsm_state WHERE phone_number = %s',
-                (phone,)
-            )
-            row = cur.fetchone()
-            cur.close()
-            return row[0] if row and row[0] else 'start'
+            state = db.session.get(FSMState, phone)
+            return state.statename if state and state.statename else 'start'
 
         try:
             if request.method == 'POST':
@@ -290,27 +286,21 @@ def create_app() -> Flask:
                         error='Invalid state selection. Please choose a valid state.'
                     )
 
-                cur = db.conn.cursor()
                 mark_interested = new_state in interested_states
-                cur.execute(
-                    """
-                    UPDATE public.fsm_state
-                    SET statename = %s,
-                        was_interested = COALESCE(was_interested, FALSE) OR %s
-                    WHERE phone_number = %s
-                    """,
-                    (new_state, mark_interested, phone)
-                )
-                if cur.rowcount == 0:
-                    cur.execute(
-                        """
-                        INSERT INTO public.fsm_state (phone_number, statename, was_interested)
-                        VALUES (%s, %s, %s)
-                        """,
-                        (phone, new_state, mark_interested)
+                state = db.session.get(FSMState, phone)
+
+                if state:
+                    state.statename = new_state
+                    state.was_interested = bool(state.was_interested) or mark_interested
+                else:
+                    state = FSMState(
+                        phone_number=phone,
+                        statename=new_state,
+                        was_interested=mark_interested,
                     )
-                db.conn.commit()
-                cur.close()
+                    db.session.add(state)
+
+                db.session.commit()
 
                 response = make_response('', 204)
                 response.headers['HX-Trigger'] = json.dumps({'refresh-conversations': {'phone': phone}})
@@ -354,3 +344,4 @@ def create_app() -> Flask:
 if __name__ == "__main__":
     app = create_app()
     app.run(debug=True)
+

@@ -10,6 +10,7 @@ from openai import OpenAI
 import main_intent
 from control_session import get_session_messages, get_session_messages_no_base_prompt
 from main_intent import tool_get_fsm_reply, tool_get_user_context, tool_update_fsm
+from models import Message
 from user_context import UserContext
 
 load_dotenv()  # This loads variables from .env into os.environ
@@ -214,30 +215,18 @@ class GPTClient:
 
 def log_message_to_db(db_instance, phone_number: str, reply: str):
     """Log assistant reply to the message table."""
-    cur = db_instance.conn.cursor()
+    session = getattr(db_instance, "session", db_instance)
 
-    message_data = {
-        "role": "assistant",
-        "content": reply
-    }
-
-    query = """
-        INSERT INTO public.message (phone_number, direction, body, message_data, sent_at)
-        VALUES (%s, %s, %s, %s, %s)
-    """
-
-    cur.execute(
-        query,
-        (
-            phone_number,
-            'outbound',
-            reply,
-            json.dumps(message_data),
-            datetime.utcnow()
-        )
+    message = Message(
+        phone_number=phone_number,
+        direction='outbound',
+        body=reply,
+        message_data={'role': 'assistant', 'content': reply},
+        sent_at=datetime.utcnow(),
     )
 
-    db_instance.conn.commit()
+    session.add(message)
+    session.commit()
 
 
 def load_tools():
