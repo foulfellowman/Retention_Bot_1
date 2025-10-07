@@ -413,9 +413,10 @@ class DB:
         return name_map
 
 
-def insert_message(db_connection: "DB", phone: str, user_input: str) -> None:
+def insert_message(db_connection: "DB", phone: str, user_input: str, twilio_sid: Optional[str] = None) -> None:
     message = Message(
         phone_number=phone,
+        twilio_sid=twilio_sid,
         direction="inbound",
         body=user_input,
         message_data={"role": "user", "content": user_input},
