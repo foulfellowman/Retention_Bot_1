@@ -16,6 +16,7 @@ from models import (
     Base,
     Contact,
     FSMState,
+    Phone,
     Message,
     TestCase,
     TestRun,
@@ -226,6 +227,16 @@ class DB:
             self.session.close()
             self.session = None  # type: ignore[assignment]
 
+    def _ensure_phone(self, phone: str) -> Phone:
+        phone = (phone or "").strip()
+        if not phone:
+            raise ValueError("phone number is required")
+        phone_row = self.session.get(Phone, phone)
+        if phone_row is None:
+            phone_row = Phone(phone_number=phone)
+            self.session.add(phone_row)
+            self.session.flush()
+        return phone_row
     def quick_query(self) -> None:
         bind = self.session.get_bind()
         if bind is None:
@@ -241,6 +252,7 @@ class DB:
         print(tables)
 
     def insert_message(self, phone: str, user_input: str, twilio_sid: Optional[str] = None) -> None:
+        self._ensure_phone(phone)
         message = Message(
             phone_number=phone,
             twilio_sid=twilio_sid,
