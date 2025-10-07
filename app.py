@@ -154,9 +154,28 @@ def create_app() -> Flask:
     @app.route("/sms", methods=["POST"])
     def sms_reply():
         # Inbound webhook from Twilio
-        incoming_msg = (request.form.get("Body") or "").strip()
-        from_number = request.form.get("From")
-        twilio_sid = get_twilio_sid()
+        form_params = request.form.to_dict(flat=True)
+        signature = request.headers.get("X-Twilio-Signature")
+        services = get_services()
+        twilio_client = services["twilio"]
+
+        try:
+            is_valid = twilio_client.validate_webhook(signature, request.url, form_params)
+        except RuntimeError as exc:
+            current_app.logger.error("Unable to validate Twilio webhook: %s", exc)
+            return "Twilio signature validation misconfigured", 500
+
+        if not is_valid:
+            current_app.logger.warning(
+                "Rejected Twilio webhook with invalid signature: from=%s sid=%s",
+                form_params.get("From"),
+                form_params.get("MessageSid"),
+            )
+            return "Invalid signature", 403
+
+        incoming_msg = (form_params.get("Body") or "").strip()
+        from_number = form_params.get("From")
+        twilio_sid = form_params.get("MessageSid")
 
         print(f"Incoming from {from_number}: {incoming_msg}")
 
@@ -174,12 +193,11 @@ def create_app() -> Flask:
             # get_services()["gpt"].set_context(user_ctx.phone_number, user_ctx.turn_into_gpt_context(incoming_sms=incoming_msg))
 
             # Generate reply via GPT
-            gpt = get_services()["gpt"]
+            gpt = services["gpt"]
             reply = gpt.generate_response(incoming_msg, user_ctx, db)
 
             # Send reply out-of-band via Twilio REST
-            twilio_client = get_services()["twilio"]
-            twilio_client.send_sms(to_phone=from_number, message=reply)
+            # twilio_client.send_sms(to_phone=from_number, message=reply)
 
         finally:
             try:
