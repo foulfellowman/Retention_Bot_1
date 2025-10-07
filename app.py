@@ -10,7 +10,7 @@ import psutil
 from dotenv import load_dotenv
 
 from admin import Admin
-from db import DB, insert_message
+from db import DB
 from models import FSMState
 from gpt import GPTClient
 from reach_out import ReachOut
@@ -164,7 +164,7 @@ def create_app() -> Flask:
         db = DB()
         try:
             # Record inbound
-            insert_message(db, from_number, incoming_msg, twilio_sid)
+            db.insert_message(from_number, incoming_msg, twilio_sid)
 
             # Build a proper UserContext (fixes the previous string misuse)
             user_ctx = UserContext(str(from_number))

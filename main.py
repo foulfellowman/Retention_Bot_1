@@ -7,7 +7,7 @@ from typing import Callable
 
 from dotenv import load_dotenv
 
-from db import DB, insert_message, insert_message_from_gpt
+from db import DB
 from gpt import GPTClient
 from models import FSMState, Message
 from sqlalchemy import delete
@@ -87,11 +87,11 @@ class ConversationApp:
     def handle_stop(self, text: str) -> None:
         self.user.trigger_event("user_stopped", verbose=True)
         with self.db_factory() as db:
-            insert_message(db, self.phone, text)
+            db.insert_message(self.phone, text)
 
     def handle_user_turn(self, text: str) -> str:
         with self.db_factory() as db:
-            insert_message(db, self.phone, text)
+            db.insert_message(self.phone, text)
             reply = self.gpt.generate_response(text, self.user, db)
         return reply
 
@@ -100,7 +100,7 @@ class ConversationApp:
 
         if self.intro_message:
             with self.db_factory() as db:
-                insert_message_from_gpt(db, self.phone, self.intro_message)
+                db.insert_message_from_gpt(self.phone, self.intro_message)
             print(f"GPT: {self.intro_message}")
 
         while True:

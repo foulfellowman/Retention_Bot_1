@@ -264,6 +264,17 @@ class DB:
         self.session.add(message)
         self.session.commit()
 
+    def insert_message_from_gpt(self, phone: str, gpt_input: str) -> None:
+        message = Message(
+            phone_number=phone,
+            direction="outbound",
+            body=gpt_input,
+            message_data={"role": "developer", "content": gpt_input},
+            sent_at=datetime.utcnow(),
+        )
+        self.session.add(message)
+        self.session.commit()
+
     def SQL_latest_message_per_phone(self):
         stmt = (
             select(
@@ -411,31 +422,6 @@ class DB:
             if parts:
                 name_map[phone] = " ".join(parts)
         return name_map
-
-
-def insert_message(db_connection: "DB", phone: str, user_input: str, twilio_sid: Optional[str] = None) -> None:
-    message = Message(
-        phone_number=phone,
-        twilio_sid=twilio_sid,
-        direction="inbound",
-        body=user_input,
-        message_data={"role": "user", "content": user_input},
-        sent_at=datetime.utcnow(),
-    )
-    db_connection.session.add(message)
-    db_connection.session.commit()
-
-
-def insert_message_from_gpt(db_connection: "DB", phone: str, gpt_input: str) -> None:
-    message = Message(
-        phone_number=phone,
-        direction="outbound",
-        body=gpt_input,
-        message_data={"role": "developer", "content": gpt_input},
-        sent_at=datetime.utcnow(),
-    )
-    db_connection.session.add(message)
-    db_connection.session.commit()
 
 
 def ensure_test_run_tables(db_connection: "DB") -> None:
