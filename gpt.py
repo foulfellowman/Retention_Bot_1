@@ -16,6 +16,10 @@ from user_context import UserContext
 load_dotenv()  # This loads variables from .env into os.environ
 
 
+class GPTServiceError(RuntimeError):
+    """Raised when the upstream GPT service fails or is unavailable."""
+
+
 class GPTClient:
     def __init__(self, temperature: float = 0.0, max_tokens: int = 512):
         path = pathlib.Path(os.getenv("BASE_PROMPT_FILE", "./base_prompt.txt"))
