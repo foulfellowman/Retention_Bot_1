@@ -84,10 +84,10 @@ class GPTClient:
         Explain briefly, in natural conversational language (not technical jargon),
         why this message fits that state.
         """
-        response = self._client.chat.completions.create(
-            model=self._model,  # or your existing model
+        response = self._chat_completion(
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=120
+            temperature=self._temperature,
+            max_tokens=120,
         )
         return response.choices[0].message["content"].strip()
 
@@ -108,8 +108,7 @@ class GPTClient:
         force_tool_next = False  # <- set when we reject/no-op a transition
 
         # first turn: must use tools
-        response = self._client.chat.completions.create(
-            model=self._model,
+        response = self._chat_completion(
             messages=messages,
             temperature=self._temperature,
             max_tokens=self._max_tokens,
@@ -174,8 +173,7 @@ class GPTClient:
                     })
 
                 # Ask again after tools:
-                response = self._client.chat.completions.create(
-                    model=self._model,
+                response = self._chat_completion(
                     messages=messages,
                     temperature=self._temperature,
                     max_tokens=self._max_tokens,
@@ -188,8 +186,7 @@ class GPTClient:
             # No tool calls returned by the model
             if force_tool_next:
                 # Model skipped tools right after a rejected/no-op update: force a tool pass
-                response = self._client.chat.completions.create(
-                    model=self._model,
+                response = self._chat_completion(
                     messages=messages,
                     temperature=self._temperature,
                     max_tokens=self._max_tokens,
@@ -215,6 +212,35 @@ class GPTClient:
                 log_message_to_db(db_instance, phone, reply)
         except Exception as e:
             print(e)
+
+    def _chat_completion(
+            self,
+            *,
+            messages,
+            temperature: float,
+            max_tokens: int,
+            tools=None,
+            tool_choice=None,
+    ):
+        """Wrapper around OpenAI chat completions with consistent error handling."""
+        kwargs = {
+            "model": self._model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if tools:
+            kwargs["tools"] = tools
+            if tool_choice is not None:
+                kwargs["tool_choice"] = tool_choice
+        elif tool_choice is not None:
+            kwargs["tool_choice"] = tool_choice
+
+        try:
+            return self._client.chat.completions.create(**kwargs)
+        except Exception as exc:  # broad catch to ensure upstream outages are surfaced cleanly
+            logger.exception("Failed to fetch chat completion from OpenAI")
+            raise GPTServiceError("Chat completion failed") from exc
 
 
 def log_message_to_db(db_instance, phone_number: str, reply: str):

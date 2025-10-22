@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from admin import Admin
 from db import DB
 from models import FSMState
-from gpt import GPTClient
+from gpt import GPTClient, GPTServiceError
 from reach_out import ReachOut
 from twilio_test import TwilioSMSClient
 from user_context import UserContext
@@ -194,7 +194,33 @@ def create_app() -> Flask:
 
             # Generate reply via GPT
             gpt = services["gpt"]
-            reply = gpt.generate_response(incoming_msg, user_ctx, db)
+            try:
+                reply = gpt.generate_response(incoming_msg, user_ctx, db)
+            except GPTServiceError as exc:
+                fallback_reply = current_app.config.get(
+                    "GPT_FALLBACK_MESSAGE",
+                    "Sorry, we're having trouble replying automatically.",
+                )
+                current_app.logger.warning(
+                    "GPT service unavailable for %s, using fallback message.",
+                    from_number,
+                    exc_info=exc,
+                )
+                reply = fallback_reply
+                try:
+                    gpt.insert_with_db_instance(db, reply, user_ctx)
+                except Exception as record_exc:
+                    current_app.logger.exception(
+                        "Failed to record fallback reply for %s",
+                        from_number,
+                        exc_info=record_exc,
+                    )
+            except Exception as exc:
+                current_app.logger.exception(
+                    "Unexpected failure generating response for %s",
+                    from_number,
+                )
+                return ("Internal server error.", 500)
 
             # Send reply out-of-band via Twilio REST
             # twilio_client.send_sms(to_phone=from_number, message=reply)
