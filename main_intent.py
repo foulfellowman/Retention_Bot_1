@@ -5,13 +5,8 @@ import logging
 from transitions.core import MachineError, EventData
 from user_context import UserContext
 
-# Set up dedicated logger for FSM operations
-fsm_logger = logging.getLogger('fsm_debug')
-fsm_logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - FSM - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-fsm_logger.addHandler(handler)
+# Module-level logger for FSM operations
+fsm_logger = logging.getLogger(__name__)
 
 
 def tool_get_user_context(user: UserContext):
@@ -82,13 +77,18 @@ def tool_update_fsm(user, event_name: str, kwargs=None, verbose: bool = True):
             fsm_logger.info(f"No coercion needed: {event_name}")
 
     # Check allowed triggers
-    allowed = _get_allowed_triggers(state_before, user)
+    allowed = _get_allowed_triggers(state_before, user, verbose=verbose)
     if verbose:
         fsm_logger.info(f"Allowed triggers from {state_before}: {sorted(allowed) if allowed else 'None'}")
 
     # Validate trigger
     if allowed and event_to_fire not in allowed:
-        fsm_logger.warning(f"REJECTED: {event_to_fire} not in allowed triggers {sorted(allowed)}")
+        if verbose:
+            fsm_logger.warning(
+                "REJECTED: %s not in allowed triggers %s",
+                event_to_fire,
+                sorted(allowed),
+            )
         result = {
             "applied": False,
             "reason": "invalid_trigger_for_state",
@@ -107,7 +107,7 @@ def tool_update_fsm(user, event_name: str, kwargs=None, verbose: bool = True):
     # Attempt the transition
     try:
         if verbose:
-            fsm_logger.info(f"Attempting to fire event: {event_to_fire} with kwargs: {kwargs}")
+            fsm_logger.info("Attempting to fire event: %s with kwargs: %s", event_to_fire, kwargs)
 
         pre_transition_snapshot = user.get_fsm_snapshot()
 
@@ -127,7 +127,7 @@ def tool_update_fsm(user, event_name: str, kwargs=None, verbose: bool = True):
             else:
                 fsm_logger.warning("NO STATE CHANGE (possible self-transition or condition failure)")
 
-        new_allowed = _get_allowed_triggers(state_after, user)
+        new_allowed = _get_allowed_triggers(state_after, user, verbose=verbose)
         if verbose:
             fsm_logger.info(f"New allowed triggers: {sorted(new_allowed) if new_allowed else 'None'}")
             if pre_transition_snapshot != post_transition_snapshot:
@@ -146,12 +146,13 @@ def tool_update_fsm(user, event_name: str, kwargs=None, verbose: bool = True):
         }
 
         if verbose:
-            fsm_logger.info(f"Returning success result: {result}")
+            fsm_logger.info("Returning success result: %s", result)
         return json.dumps(result)
 
     except MachineError as e:
-        fsm_logger.error(f"MACHINE ERROR during transition: {str(e)}")
-        fsm_logger.error(f"Event: {event_to_fire}, State: {state_before}, Kwargs: {kwargs}")
+        if verbose:
+            fsm_logger.error("MACHINE ERROR during transition: %s", e)
+            fsm_logger.error("Event: %s, State: %s, Kwargs: %s", event_to_fire, state_before, kwargs)
 
         result = {
             "applied": False,
@@ -164,13 +165,14 @@ def tool_update_fsm(user, event_name: str, kwargs=None, verbose: bool = True):
             "fsm": fsm_snapshot_before,
         }
         if verbose:
-            fsm_logger.info(f"Returning error result: {result}")
+            fsm_logger.info("Returning error result: %s", result)
         return json.dumps(result)
 
     except Exception as e:
-        fsm_logger.error(f"UNEXPECTED ERROR during transition: {str(e)}")
-        fsm_logger.error(f"Exception type: {type(e).__name__}")
-        fsm_logger.error(f"Event: {event_to_fire}, State: {state_before}, Kwargs: {kwargs}")
+        if verbose:
+            fsm_logger.error("UNEXPECTED ERROR during transition: %s", e)
+            fsm_logger.error("Exception type: %s", type(e).__name__)
+            fsm_logger.error("Event: %s, State: %s, Kwargs: %s", event_to_fire, state_before, kwargs)
 
         result = {
             "applied": False,
@@ -183,7 +185,7 @@ def tool_update_fsm(user, event_name: str, kwargs=None, verbose: bool = True):
             "fsm": fsm_snapshot_before,
         }
         if verbose:
-            fsm_logger.info(f"Returning unexpected error result: {result}")
+            fsm_logger.info("Returning unexpected error result: %s", result)
         return json.dumps(result)
 
     finally:
@@ -191,17 +193,19 @@ def tool_update_fsm(user, event_name: str, kwargs=None, verbose: bool = True):
             fsm_logger.info("=== FSM UPDATE COMPLETE ===\n")
 
 
-def _get_allowed_triggers_prod(state: str, user: UserContext) -> set[str]:
+def _get_allowed_triggers_prod(state: str, user: UserContext, verbose: bool = False) -> set[str]:
     try:
         # Machine exposed by `transitions`
         a = set(sorted(user.fsm.machine.get_triggers(user.get_current_state())))
         b = set(user.fsm.machine.get_triggers(state))
-        print("allowed: ", b)
-        print("allowed with change: ", a)
+        if verbose:
+            fsm_logger.debug("Allowed triggers for state %s: %s", state, b)
+            fsm_logger.debug("Allowed triggers after coercion: %s", a)
         return set(a)
         # return set(user.fsm.get_triggers(state))
     except Exception as e:
-        print(e)
+        if verbose:
+            fsm_logger.exception("Failed to determine allowed triggers for state %s", state)
         return set()
 
 
@@ -209,10 +213,15 @@ def _get_allowed_triggers(state: str, user: UserContext, verbose: bool = False) 
     """
     Get allowed triggers for a specific state using only explicitly defined triggers.
     """
-    if verbose:
-        print(f"\n{'=' * 60}")
-        print("DEBUG: _get_allowed_triggers called (EXPLICIT TRIGGERS ONLY)")
-        print(f"{'=' * 60}")
+    def log(message: str, *args) -> None:
+        if verbose:
+            fsm_logger.debug(message, *args)
+
+    separator = "=" * 60
+    log("")
+    log(separator)
+    log("DEBUG: _get_allowed_triggers called (EXPLICIT TRIGGERS ONLY)")
+    log(separator)
 
     # Define your explicit triggers from IntentionFlow class
     EXPLICIT_TRIGGERS = {
@@ -230,67 +239,57 @@ def _get_allowed_triggers(state: str, user: UserContext, verbose: bool = False) 
 
     try:
         # Input validation
-        if verbose:
-            print("INPUT PARAMETERS:")
-            print(f"   - Requested state: '{state}' (type: {type(state)})")
-            print(f"   - User object: {user} (type: {type(user)})")
-            print(f"   - Explicit triggers to check: {sorted(EXPLICIT_TRIGGERS)}")
+        log("INPUT PARAMETERS:")
+        log("   - Requested state: '%s' (type: %s)", state, type(state))
+        log("   - User object: %s (type: %s)", user, type(user))
+        log("   - Explicit triggers to check: %s", sorted(EXPLICIT_TRIGGERS))
 
         # Check if user and fsm exist
         if not hasattr(user, 'fsm'):
-            if verbose:
-                print("ERROR: User object has no 'fsm' attribute")
+            log("ERROR: User object has no 'fsm' attribute")
             return set()
 
         if not hasattr(user.fsm, 'machine'):
-            if verbose:
-                print("ERROR: FSM object has no 'machine' attribute")
+            log("ERROR: FSM object has no 'machine' attribute")
             return set()
 
-        if verbose:
-            print("User FSM structure looks valid")
+        log("User FSM structure looks valid")
 
         # FSM introspection
-        if verbose:
-            print("\nFSM INTROSPECTION:")
+        log("")
+        log("FSM INTROSPECTION:")
         fsm_machine = user.fsm.machine
 
         # Get current state
         try:
             current_state = user.get_current_state()
-            if verbose:
-                print(f"   - Current state: '{current_state}' (type: {type(current_state)})")
+            log("   - Current state: '%s' (type: %s)", current_state, type(current_state))
         except Exception as e:
-            if verbose:
-                print(f"   - ERROR getting current state: {e}")
+            log("   - ERROR getting current state: %s", e)
             current_state = None
 
         # Get all available states
         try:
             all_states = list(fsm_machine.states)
-            if verbose:
-                print(f"   - All available states ({len(all_states)}): {all_states}")
+            log("   - All available states (%s): %s", len(all_states), all_states)
         except Exception as e:
-            if verbose:
-                print(f"   - ERROR getting all states: {e}")
+            log("   - ERROR getting all states: %s", e)
             all_states = []
 
         # Check if requested state exists
         state_exists = state in [str(s) for s in all_states]
         if state_exists:
-            if verbose:
-                print(f"   - Requested state '{state}' found in available states")
+            log("   - Requested state '%s' found in available states", state)
         else:
-            if verbose:
-                print(f"   - Requested state '{state}' NOT found in available states")
+            log("   - Requested state '%s' NOT found in available states", state)
             # Check for similar states (case sensitivity, whitespace)
             similar_states = [s for s in all_states if str(s).lower() == state.lower()]
-            if similar_states and verbose:
-                print(f"   - Similar states (case insensitive): {similar_states}")
+            if similar_states:
+                log("   - Similar states (case insensitive): %s", similar_states)
 
         # Check which explicit triggers are valid from the requested state
-        if verbose:
-            print("\nEXPLICIT TRIGGER VALIDATION:")
+        log("")
+        log("EXPLICIT TRIGGER VALIDATION:")
         valid_triggers = set()
 
         for trigger in EXPLICIT_TRIGGERS:
@@ -313,35 +312,26 @@ def _get_allowed_triggers(state: str, user: UserContext, verbose: bool = False) 
 
                 if is_valid:
                     valid_triggers.add(trigger)
-                    if verbose:
-                        print(f"   - '{trigger}' is valid from state '{state}'")
+                    log("   - '%s' is valid from state '%s'", trigger, state)
                 else:
-                    if verbose:
-                        print(f"   - '{trigger}' is NOT valid from state '{state}'")
+                    log("   - '%s' is NOT valid from state '%s'", trigger, state)
 
             except Exception as e:
-                if verbose:
-                    print(f"   - Error checking trigger '{trigger}': {e}")
+                log("   - Error checking trigger '%s': %s", trigger, e)
 
         result = valid_triggers
 
         # Final result
-        if verbose:
-            print("\nFINAL DECISION:")
-            print(f"   - Returning explicit triggers for state '{state}': {sorted(result)}")
-            print("   - Filtered out auto-generated triggers like 'to_*'")
-            print(f"{'=' * 60}\n")
+        log("")
+        log("FINAL DECISION:")
+        log("   - Returning explicit triggers for state '%s': %s", state, sorted(result))
+        log("   - Filtered out auto-generated triggers like 'to_*'")
+        log("%s\n", separator)
         return result
 
     except Exception as e:
         if verbose:
-            print("\nUNEXPECTED ERROR in _get_allowed_triggers:")
-            print(f"   - Exception type: {type(e).__name__}")
-            print(f"   - Exception message: {str(e)}")
-            import traceback
-            print("   - Stack trace:")
-            traceback.print_exc()
-            print(f"{'=' * 60}\n")
+            fsm_logger.exception("UNEXPECTED ERROR in _get_allowed_triggers for state '%s'", state)
         return set()
 
 
@@ -355,8 +345,12 @@ def tool_get_fsm_reply(user: UserContext):
 # Additional helper function for debugging
 def debug_fsm_state(user, context=""):
     """Call this anywhere to get detailed FSM state info"""
-    print(f"=== FSM STATE DEBUG {context} ===")
-    print(f"Current state: {user.get_current_state()}")
-    print(f"Allowed triggers: {sorted(_get_allowed_triggers(user.get_current_state(), user))}")
-    print(f"FSM snapshot: {user.get_fsm_snapshot()}")
-    print(f"=== END DEBUG ===")
+    label = f" {context}" if context else ""
+    fsm_logger.info("=== FSM STATE DEBUG%s ===", label)
+    fsm_logger.info("Current state: %s", user.get_current_state())
+    fsm_logger.info(
+        "Allowed triggers: %s",
+        sorted(_get_allowed_triggers(user.get_current_state(), user)),
+    )
+    fsm_logger.info("FSM snapshot: %s", user.get_fsm_snapshot())
+    fsm_logger.info("=== END DEBUG ===")
