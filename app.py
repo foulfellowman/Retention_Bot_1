@@ -4,6 +4,7 @@ import logging
 from flask import Flask, request, render_template, redirect, url_for, current_app, make_response, jsonify
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_wtf import FlaskForm
+from flask_wtf.csrf import CSRFProtect
 from wtforms import PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired
 import os
@@ -18,6 +19,8 @@ from logging_config import configure_logging
 from reach_out import ReachOut
 from twilio_test import TwilioSMSClient
 from user_context import UserContext
+
+csrf = CSRFProtect()
 
 
 class LoginForm(FlaskForm):

@@ -20,6 +20,7 @@
           hx-target="#modal-container"
           hx-swap="innerHTML"
           style="display: flex; flex-direction: column; gap: 16px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label for="conversation-state" style="font-weight: 600;">
         Conversation state
       </label>
