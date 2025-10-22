@@ -233,7 +233,8 @@ def create_app() -> Flask:
                 return ("Internal server error.", 500)
 
             # Send reply out-of-band via Twilio REST
-            # twilio_client.send_sms(to_phone=from_number, message=reply)
+            if os.getenv("OUTBOUND_LIVE_TOGGLE", 0) == 1:
+                twilio_client.send_sms(to_phone=from_number, message=reply)
 
         finally:
             try:
