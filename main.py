@@ -102,12 +102,13 @@ class ConversationApp:
         return reply
 
     def loop(self) -> None:
-        print("\n--- GPT SMS Conversation Simulator ---")
+        logger.info("")
+        logger.info("--- GPT SMS Conversation Simulator ---")
 
         if self.intro_message:
             with self.db_factory() as db:
                 db.insert_message_from_gpt(self.phone, self.intro_message)
-            print(f"GPT: {self.intro_message}")
+            logger.info("GPT: %s", self.intro_message)
 
         while True:
             if self.should_exit_stateful():
