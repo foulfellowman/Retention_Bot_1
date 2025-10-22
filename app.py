@@ -59,7 +59,7 @@ def create_app() -> Flask:
 
     services = {
         "gpt": GPTClient(
-            max_tokens=int(os.getenv("max_tokens"))
+            max_tokens=int(os.getenv("max_tokens", 200))
         ),
         "twilio": twilio_client,
         "admin_user": Admin(

@@ -37,7 +37,7 @@ def get_session_messages(db, phone, base_prompt, verbose=False):
 def get_session_messages_no_base_prompt(db, phone, verbose=False):
     load_dotenv()  # This loads variables from .env into os.environ
 
-    readback_limit = int(os.getenv("readback_limit"))
+    readback_limit = int(os.getenv("readback_limit", 20))
     session = _get_session(db)
 
     stmt = (
