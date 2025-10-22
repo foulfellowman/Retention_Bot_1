@@ -210,16 +210,16 @@ class UserContext:
         if state == "action_sqft":
             return "Please let me know the square footage of your property."
         if state == "follow_up":
-            return "Thanks I’ve noted those details. We will reach out with a booking"
+            return "Thanks I've noted those details. We will reach out with a booking"
         if state == "done":
             return "All set—thanks! We will reach out if anything is needed"
         if state == "not_interested":
             return "Thank you, no problem. Bye"
         if state == "pause":
-            return "Let’s pause for now. Ping me 'resume' when you’re ready."
+            return "Let's pause for now. Ping me 'resume' when you're ready."
         if state == "stop":
-            return "You’re opted out"
+            return "You're opted out"
         if state == "confused":
             count = snap.get("confused_count", 0)
-            return f"Sorry—could you clarify?"
-        return "I didn’t catch that—mind rephrasing?"
+            return f"Sorry, could you clarify?"
+        return "I didn't catch that, mind rephrasing?"
