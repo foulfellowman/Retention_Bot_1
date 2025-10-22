@@ -1,10 +1,14 @@
 import json
+import logging
 import os
 
 from dotenv import load_dotenv
 from sqlalchemy import select
 
 from models import Message
+
+
+logger = logging.getLogger(__name__)
 
 
 def _get_session(db):
@@ -29,7 +33,7 @@ def get_session_messages(db, phone, base_prompt, verbose=False):
         user_message_array.append(message_json)
 
     if verbose:
-        print(user_message_array)
+        logger.info("Session messages with base prompt: %s", user_message_array)
 
     return user_message_array
 
@@ -56,6 +60,6 @@ def get_session_messages_no_base_prompt(db, phone, verbose=False):
         user_message_array.append(message_json)
 
     if verbose:
-        print(user_message_array)
+        logger.info("Session messages without base prompt: %s", user_message_array)
 
     return user_message_array

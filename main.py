@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from dataclasses import dataclass
@@ -7,11 +8,16 @@ from typing import Callable
 
 from dotenv import load_dotenv
 
-from db import DB
+from db import DB, insert_message, insert_message_from_gpt
 from gpt import GPTClient
+from logging_config import configure_logging
 from models import FSMState, Message
 from sqlalchemy import delete
 from user_context import UserContext
+
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -115,9 +121,9 @@ class ConversationApp:
                 break
 
             reply = self.handle_user_turn(user_input)
-            print("Snapshot:")
-            print(self.user.get_fsm_snapshot())
-            print(f"GPT: {reply}\n")
+            logger.info("Snapshot: %s", self.user.get_fsm_snapshot())
+            logger.info("GPT: %s", reply)
+            logger.info("")
 
 
 # ---------- entrypoint ----------
@@ -144,7 +150,8 @@ def main() -> None:
     try:
         app.loop()
     except KeyboardInterrupt:
-        print("\nExiting.")
+        logger.info("")
+        logger.info("Exiting.")
 
 
 if __name__ == "__main__":

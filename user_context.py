@@ -1,8 +1,12 @@
+import logging
 from typing import Dict, List, Optional
 
 from db import DB
 from fsm import IntentionFlow
 from models import FSMState, Phone
+
+
+logger = logging.getLogger(__name__)
 
 
 class UserContext:
@@ -33,7 +37,7 @@ class UserContext:
         if hasattr(self.fsm, event_name):
             trigger_fn = getattr(self.fsm, event_name)
             if verbose:
-                print('Event Triggered: ', event_name)
+                logger.info("FSM event triggered: %s", event_name)
             # Fire transition on the in-memory FSM
             trigger_fn(**kwargs)
             # Persist the resulting state to the DB immediately for reliable tracking

@@ -1,4 +1,11 @@
+import logging
+
 from transitions import Machine, State
+
+from logging_config import configure_logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class IntentionFlow:
@@ -57,53 +64,57 @@ class IntentionFlow:
 
 
 def simulate_all_paths():
-    print("=== 🟢 Positive Happy Path ===")
+    logger.info("=== Positive Happy Path ===")
     flow = IntentionFlow("User-A")
-    print(f"Start in: {flow.state}")
+    logger.info("Start in: %s", flow.state)
 
     flow.receive_positive_response()
-    print(f"→ receive_positive_response → {flow.state}")
+    logger.info("-> receive_positive_response -> %s", flow.state)
 
     flow.go_to_sqft()
-    print(f"→ go_to_sqft → {flow.state}")
+    logger.info("-> go_to_sqft -> %s", flow.state)
 
     flow.receive_followup()
-    print(f"→ receive_followup → {flow.state}")
+    logger.info("-> receive_followup -> %s", flow.state)
 
     flow.complete_flow()
-    print(f"→ complete_flow → {flow.state}")
+    logger.info("-> complete_flow -> %s", flow.state)
 
-    print("\n=== 🟡 Confused → Pause Path ===")
+    logger.info("")
+    logger.info("=== Confused To Pause Path ===")
     flow = IntentionFlow("User-B")
-    print(f"Start in: {flow.state}")
+    logger.info("Start in: %s", flow.state)
 
     flow.retry_confused()
-    print(f"→ retry_confused → {flow.state} (count: {flow.confused_count})")
+    logger.info("-> retry_confused -> %s (count: %s)", flow.state, flow.confused_count)
 
     flow.retry_confused()
-    print(f"→ retry_confused → {flow.state} (count: {flow.confused_count})")
+    logger.info("-> retry_confused -> %s (count: %s)", flow.state, flow.confused_count)
 
     flow.retry_confused()
-    print(f"→ retry_confused → {flow.state} (count: {flow.confused_count})")
+    logger.info("-> retry_confused -> %s (count: %s)", flow.state, flow.confused_count)
 
     flow.pause_flow()
-    print(f"→ pause_flow → {flow.state}")
+    logger.info("-> pause_flow -> %s", flow.state)
 
     flow.resume_flow()
-    print(f"→ resume_flow → {flow.state}")
+    logger.info("-> resume_flow -> %s", flow.state)
 
-    print("\n=== 🔴 User Opted Out Early ===")
+    logger.info("")
+    logger.info("=== User Opted Out Early ===")
     flow = IntentionFlow("User-C")
-    print(f"Start in: {flow.state}")
+    logger.info("Start in: %s", flow.state)
     flow.receive_negative_response()
-    print(f"→ receive_negative_response → {flow.state}")
+    logger.info("-> receive_negative_response -> %s", flow.state)
 
-    print("\n=== 🔕 User Sent STOP ===")
+    logger.info("")
+    logger.info("=== User Sent STOP ===")
     flow = IntentionFlow("User-D")
-    print(f"Start in: {flow.state}")
+    logger.info("Start in: %s", flow.state)
     flow.user_stopped()
-    print(f"→ user_stopped → {flow.state}")
+    logger.info("-> user_stopped -> %s", flow.state)
 
 
 if __name__ == "__main__":
+    configure_logging()
     simulate_all_paths()

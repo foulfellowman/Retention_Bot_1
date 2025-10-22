@@ -1,4 +1,5 @@
 import json
+import logging
 # app.py
 from flask import Flask, request, render_template, redirect, url_for, current_app, make_response, jsonify
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
@@ -13,6 +14,7 @@ from admin import Admin
 from db import DB
 from models import FSMState
 from gpt import GPTClient, GPTServiceError
+from logging_config import configure_logging
 from reach_out import ReachOut
 from twilio_test import TwilioSMSClient
 from user_context import UserContext
@@ -30,8 +32,17 @@ class LoginForm(FlaskForm):
 
 def create_app() -> Flask:
     load_dotenv()
+    configure_logging()
+    root_logger = logging.getLogger()
     app = Flask(__name__)
     app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret")
+    csrf.init_app(app)
+
+    app.logger.handlers = []
+    for handler in root_logger.handlers:
+        app.logger.addHandler(handler)
+    app.logger.setLevel(root_logger.level)
+    app.logger.propagate = False
 
     login_manager = LoginManager()
     login_manager.login_view = "login"
@@ -94,7 +105,7 @@ def create_app() -> Flask:
     def print_memory_usage():
         process = psutil.Process(os.getpid())
         mem = process.memory_info().rss / 1024 / 1024  # MB
-        print(f"Memory usage: {mem:.2f} MB")
+        current_app.logger.debug("Memory usage: %.2f MB", mem)
 
     # ----------------------------
     # Routes
@@ -177,7 +188,7 @@ def create_app() -> Flask:
         from_number = form_params.get("From")
         twilio_sid = form_params.get("MessageSid")
 
-        print(f"Incoming from {from_number}: {incoming_msg}")
+        current_app.logger.info("Incoming from %s: %s", from_number, incoming_msg)
 
         # Build request-scoped objects
         db = DB()
@@ -187,10 +198,6 @@ def create_app() -> Flask:
 
             # Build a proper UserContext (fixes the previous string misuse)
             user_ctx = UserContext(str(from_number))
-            # Optionally, prime GPT context with current user info on first contact
-            # user_ctx.set_user_info("Name", ["Service A", "Service B"], 90, "Service A")
-            # user_ctx.turn_into_gpt_context(incoming_sms=incoming_msg) -> if needed:
-            # get_services()["gpt"].set_context(user_ctx.phone_number, user_ctx.turn_into_gpt_context(incoming_sms=incoming_msg))
 
             # Generate reply via GPT
             gpt = services["gpt"]
@@ -293,7 +300,7 @@ def create_app() -> Flask:
             sort = request.args.get('sort')
             conversations = db.fetch_conversations(q=q if q else None, sort=sort, direction=direction)
             # print(conversations)
-            print('Selected: ', phone)
+            current_app.logger.debug("Selected conversation: %s", phone)
 
             return render_template(
                 'partials/conversations_list_response.html',

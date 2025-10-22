@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import logging
 import os
 import threading
 from datetime import datetime
@@ -26,6 +27,7 @@ from models import (
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
 
 _engine_lock = threading.Lock()
 _engine: Optional[Engine] = None
@@ -240,7 +242,7 @@ class DB:
     def quick_query(self) -> None:
         bind = self.session.get_bind()
         if bind is None:
-            print([])
+            logger.debug("quick_query: no database bind available; returning empty result")
             return
         inspector = inspect(bind)
         tables: List[tuple[str, str]] = []
@@ -249,7 +251,7 @@ class DB:
                 continue
             for table in inspector.get_table_names(schema=schema):
                 tables.append((schema, table))
-        print(tables)
+        logger.debug("quick_query tables: %s", tables)
 
     def insert_message(self, phone: str, user_input: str, twilio_sid: Optional[str] = None) -> None:
         self._ensure_phone(phone)

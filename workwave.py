@@ -1,7 +1,15 @@
 import base64
-import requests
+import logging
 import os
+
+import requests
 from dotenv import load_dotenv
+
+from logging_config import configure_logging
+
+# Initialize logging before performing any operations
+configure_logging()
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -33,7 +41,7 @@ if response.status_code == 200:
     access_token = json_response.get("access_token")
     refresh_token = json_response.get("refresh_token")
     expires_in_seconds = json_response.get("expires_in")
-    print(expires_in_seconds)
-    print("Success")
+    logger.info("Token expires in %s seconds", expires_in_seconds)
+    logger.info("WorkWave token request succeeded")
 else:
     raise Exception(f"Error getting token: {response.text}")
