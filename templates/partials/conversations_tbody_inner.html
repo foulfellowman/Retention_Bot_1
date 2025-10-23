@@ -1,4 +1,14 @@
 {% for c in conversations %}
+    {% set raw_status = (c.status or 'None')|trim %}
+    {% set status_upper = raw_status.upper() %}
+    {% set status_map = {
+      'DONE': 'status-badge--success',
+      'NONE': 'status-badge--neutral',
+      'START': 'status-badge--neutral',
+      'FOLLOW_UP': 'status-badge--danger'
+    } %}
+    {% set status_class = status_map.get(status_upper, 'status-badge--warning') %}
+    {% set status_text = raw_status %}
     <tr hx-get="/conversations/{{ c.phone_number }}"
         hx-target="#chat-pane"
         hx-include="#search, #conversations-state"
@@ -12,17 +22,14 @@
           {{ c.display_name or 'Unknown' }}
         </span>
       </td>
-      <td>{{ c.phone_number }}</td>
-      {% set raw_status = (c.status or 'None')|trim %}
-      {% set status_upper = raw_status.upper() %}
-      {% set status_map = {
-        'DONE': 'status-badge--success',
-        'NONE': 'status-badge--neutral',
-        'START': 'status-badge--neutral',
-        'FOLLOW_UP': 'status-badge--danger'
-      } %}
-      {% set status_class = status_map.get(status_upper, 'status-badge--warning') %}
-      {% set status_text = raw_status %}
+      <td>
+        <span class="conversation-phone">
+          {% if status_upper == 'STOP' %}
+            <span class="stop-indicator" title="Messaging stopped" aria-hidden="true"></span>
+          {% endif %}
+          {{ c.phone_number }}
+        </span>
+      </td>
       <td>
         <span class="status-badge {{ status_class }}">{{ status_text }}</span>
       </td>

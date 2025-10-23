@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from admin import Admin
 from db import DB
 from models import FSMState
-from gpt import GPTClient, GPTServiceError
+from gpt import GPTClient, GPTServiceError, log_message_to_db
 from logging_config import configure_logging
 from reach_out import ReachOut
 from twilio_test import TwilioSMSClient
@@ -199,41 +199,73 @@ def create_app() -> Flask:
             # Record inbound
             db.insert_message(from_number, incoming_msg, twilio_sid)
 
-            # Build a proper UserContext (fixes the previous string misuse)
-            user_ctx = UserContext(str(from_number))
+            stop_keywords = {"stop", "stopall", "unsubscribe", "cancel", "end", "quit"}
+            normalized_msg = incoming_msg.lower()
 
-            # Generate reply via GPT
-            gpt = services["gpt"]
-            try:
-                reply = gpt.generate_response(incoming_msg, user_ctx, db)
-            except GPTServiceError as exc:
-                fallback_reply = current_app.config.get(
-                    "GPT_FALLBACK_MESSAGE",
-                    "Sorry, we're having trouble replying automatically.",
-                )
-                current_app.logger.warning(
-                    "GPT service unavailable for %s, using fallback message.",
-                    from_number,
-                    exc_info=exc,
-                )
-                reply = fallback_reply
+            if normalized_msg in stop_keywords:
                 try:
-                    gpt.insert_with_db_instance(db, reply, user_ctx)
+                    state = db.session.get(FSMState, from_number)
+                    if state:
+                        state.statename = "stop"
+                    else:
+                        db.session.add(
+                            FSMState(
+                                phone_number=from_number,
+                                statename="stop",
+                                was_interested=False,
+                            )
+                        )
+                    db.session.commit()
+                except Exception as exc:
+                    current_app.logger.exception(
+                        "Failed to set stop state for %s", from_number, exc_info=exc
+                    )
+
+                reply = "Messages Stopped"
+                try:
+                    log_message_to_db(db.session, from_number, reply)
                 except Exception as record_exc:
                     current_app.logger.exception(
-                        "Failed to record fallback reply for %s",
+                        "Failed to record stop acknowledgement for %s",
                         from_number,
                         exc_info=record_exc,
                     )
-            except Exception as exc:
-                current_app.logger.exception(
-                    "Unexpected failure generating response for %s",
-                    from_number,
-                )
-                return ("Internal server error.", 500)
+            else:
+                # Build a proper UserContext (fixes the previous string misuse)
+                user_ctx = UserContext(str(from_number))
+
+                # Generate reply via GPT
+                gpt = services["gpt"]
+                try:
+                    reply = gpt.generate_response(incoming_msg, user_ctx, db)
+                except GPTServiceError as exc:
+                    fallback_reply = current_app.config.get(
+                        "GPT_FALLBACK_MESSAGE",
+                        "Sorry, we're having trouble replying automatically.",
+                    )
+                    current_app.logger.warning(
+                        "GPT service unavailable for %s, using fallback message.",
+                        from_number,
+                        exc_info=exc,
+                    )
+                    reply = fallback_reply
+                    try:
+                        gpt.insert_with_db_instance(db, reply, user_ctx)
+                    except Exception as record_exc:
+                        current_app.logger.exception(
+                            "Failed to record fallback reply for %s",
+                            from_number,
+                            exc_info=record_exc,
+                        )
+                except Exception as exc:
+                    current_app.logger.exception(
+                        "Unexpected failure generating response for %s",
+                        from_number,
+                    )
+                    return ("Internal server error.", 500)
 
             # Send reply out-of-band via Twilio REST
-            if os.getenv("OUTBOUND_LIVE_TOGGLE", 0) == 1:
+            if reply and int(os.getenv("OUTBOUND_LIVE_TOGGLE", 0)) == 1:
                 twilio_client.send_sms(to_phone=from_number, message=reply)
 
         finally:
@@ -303,7 +335,7 @@ def create_app() -> Flask:
             q = request.args.get('q')
             sort = request.args.get('sort')
             conversations = db.fetch_conversations(q=q if q else None, sort=sort, direction=direction)
-            # print(conversations)
+
             current_app.logger.debug("Selected conversation: %s", phone)
 
             return render_template(
@@ -356,6 +388,30 @@ def create_app() -> Flask:
                     db.session.add(state)
 
                 db.session.commit()
+
+                if new_state == "stop":
+                    stop_reply = "Messages Stopped"
+                    try:
+                        log_message_to_db(db.session, phone, stop_reply)
+                    except Exception as record_exc:
+                        current_app.logger.exception(
+                            "Failed to record stop acknowledgement for %s via edit",
+                            phone,
+                            exc_info=record_exc,
+                        )
+
+                    if int(os.getenv("OUTBOUND_LIVE_TOGGLE", 0)) == 1:
+                        try:
+                            services = get_services()
+                            twilio_client = services.get("twilio")
+                            if twilio_client:
+                                twilio_client.send_sms(to_phone=phone, message=stop_reply)
+                        except Exception as send_exc:
+                            current_app.logger.exception(
+                                "Failed to send stop acknowledgement for %s via edit",
+                                phone,
+                                exc_info=send_exc,
+                            )
 
                 response = make_response('', 204)
                 response.headers['HX-Trigger'] = json.dumps({'refresh-conversations': {'phone': phone}})

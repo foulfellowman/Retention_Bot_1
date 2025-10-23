@@ -200,11 +200,25 @@ z-index: 1000;
   gap: 6px;
 }
 
+.conversation-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .interested-indicator {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background-color: #2f855a;
+  box-shadow: 0 0 0 1px #ffffff;
+}
+
+.stop-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #c53030;
   box-shadow: 0 0 0 1px #ffffff;
 }
 
