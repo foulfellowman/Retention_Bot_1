@@ -239,7 +239,7 @@ class GPTClient:
         try:
             return self._client.chat.completions.create(**kwargs)
         except Exception as exc:  # broad catch to ensure upstream outages are surfaced cleanly
-            logger.exception("Failed to fetch chat completion from OpenAI")
+
             raise GPTServiceError("Chat completion failed") from exc
 
 

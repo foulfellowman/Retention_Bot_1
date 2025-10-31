@@ -63,7 +63,6 @@ def create_app() -> Flask:
     )
     try:
         twilio_client.verify_credentials()
-        # print('[CONFIG] Twilio Valid')
     except RuntimeError as exc:
         app.logger.warning("Twilio credentials not fully configured: %s", exc)
     except Exception as exc:
@@ -165,6 +164,7 @@ def create_app() -> Flask:
             )
         return render_template("partials/settings.html", user=user)
 
+    @csrf.exempt
     @app.route("/sms", methods=["POST"])
     def sms_reply():
         # Inbound webhook from Twilio

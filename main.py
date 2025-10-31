@@ -8,7 +8,7 @@ from typing import Callable
 
 from dotenv import load_dotenv
 
-from db import DB, insert_message, insert_message_from_gpt
+from db import DB
 from gpt import GPTClient
 from logging_config import configure_logging
 from models import FSMState, Message
