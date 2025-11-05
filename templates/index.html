@@ -223,6 +223,29 @@
         }
       })();
 
+      function scrollChatPaneToBottom() {
+        var pane = document.querySelector('#chat-pane .messages');
+        if (!pane) {
+          return;
+        }
+        pane.scrollTop = pane.scrollHeight;
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', scrollChatPaneToBottom);
+      } else {
+        scrollChatPaneToBottom();
+      }
+
+      document.addEventListener('htmx:afterSwap', function(evt) {
+        if (!evt || !evt.detail || !evt.detail.target) {
+          return;
+        }
+        if (evt.detail.target.id === 'chat-pane') {
+          scrollChatPaneToBottom();
+        }
+      });
+
       document.body.addEventListener('refresh-conversations', function(evt) {
         var detail = (evt && evt.detail) ? evt.detail : {};
         closeModal();
