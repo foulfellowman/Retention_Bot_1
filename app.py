@@ -80,6 +80,18 @@ def create_app() -> Flask:
             password=os.getenv("ADMIN_PASSWORD"),
         ),
     }
+
+    reach_out_limit_raw = os.getenv("REACH_OUT_MAX_ACTIVE")
+    try:
+        reach_out_limit = int(reach_out_limit_raw) if reach_out_limit_raw else None
+    except ValueError:
+        reach_out_limit = None
+
+    services["reach_out"] = ReachOut(
+        gpt_client=services["gpt"],
+        twilio_client=services["twilio"],
+        max_active_conversations=reach_out_limit,
+    )
     app.config["services"] = services
 
     # ----------------------------
@@ -276,6 +288,54 @@ def create_app() -> Flask:
 
         # Return a simple 200 OK to Twilio (we already replied via REST)
         return "OK", 200
+
+    @app.route('/reach-out/run', methods=['POST'])
+    @login_required
+    def reach_out_run():
+        reach_out_service = get_services().get('reach_out')
+        if reach_out_service is None:
+            return jsonify({'error': 'reach_out service unavailable'}), 500
+
+        def _parse_int(value, default=None):
+            if value is None:
+                return default
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
+        fetch_default = _parse_int(os.getenv('REACH_OUT_FETCH_LIMIT'), 20)
+        fetch_limit = _parse_int(request.values.get('limit'), fetch_default)
+        if fetch_limit is None or fetch_limit <= 0:
+            return jsonify({'error': 'invalid limit'}), 400
+
+        max_active_override = _parse_int(request.values.get('max_active'))
+
+        db = DB()
+        try:
+            candidates = db.fetch_reach_out_candidates(limit=fetch_limit, exclude_states=('done',))
+        finally:
+            db.close()
+
+        if not candidates:
+            return jsonify({
+                'status': 'idle',
+                'reason': 'no candidates',
+                'requested': fetch_limit,
+            })
+
+        outcome = reach_out_service.send_bulk(candidates, max_active=max_active_override)
+        summary = outcome.get('summary', {}) if isinstance(outcome, dict) else {}
+        results = outcome.get('results', []) if isinstance(outcome, dict) else outcome
+
+        return jsonify({
+            'status': 'ok',
+            'run_id': outcome.get('run_id') if isinstance(outcome, dict) else None,
+            'requested': summary.get('requested', fetch_limit),
+            'processed': summary.get('processed', len(candidates)),
+            'summary': summary,
+            'results': results,
+        })
 
     @app.route('/')
     @login_required

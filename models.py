@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -131,3 +131,20 @@ class Usage(Base):
     )
 
     twilio_message = relationship("TwilioMessage", back_populates="usage_records")
+
+
+class ReachOutRun(Base):
+    __tablename__ = "reach_out_run"
+
+    run_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    requested: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    processed: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    sent: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    skipped: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    throttled: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    errors: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    context: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
