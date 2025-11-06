@@ -1,0 +1,32 @@
+<div style="border: 1px solid #d0d0d0; border-radius: 6px; padding: 12px; background-color: #fafafa; max-width: 360px; max-height: 320px; overflow-y: auto;">
+    {% if load_error %}
+    <div style="padding: 8px; background-color: #ffe8e8; border: 1px solid #ffb3b3; border-radius: 4px; margin-bottom: 12px;">{{ load_error }}</div>
+    {% endif %}
+
+    {% if candidates %}
+    <table style="width: 100%; border-collapse: collapse; margin-top: 4px;">
+        <thead>
+            <tr style="text-align: left; border-bottom: 1px solid #ddd;">
+                <th style="padding: 6px 4px;">Phone</th>
+                <th style="padding: 6px 4px;">Name</th>
+                <th style="padding: 6px 4px;">State</th>
+                <th style="padding: 6px 4px;">Last Service</th>
+                <th style="padding: 6px 4px;">Days Since</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for candidate in candidates %}
+            <tr style="border-bottom: 1px solid #efefef;">
+                <td style="padding: 6px 4px;">{{ candidate.get('phone') or '—' }}</td>
+                <td style="padding: 6px 4px;">{{ candidate.get('name') or '—' }}</td>
+                <td style="padding: 6px 4px;">{{ candidate.get('state') or '—' }}</td>
+                <td style="padding: 6px 4px;">{{ candidate.get('last_service') or '—' }}</td>
+                <td style="padding: 6px 4px;">{{ candidate.get('days_since') if candidate.get('days_since') is not none else '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="margin: 0;">No candidates available for the selected limit.</p>
+    {% endif %}
+</div>

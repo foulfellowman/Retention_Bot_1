@@ -16,7 +16,10 @@ from sqlalchemy import func, select
 class ReachOut:
     """Coordinate proactive outreach flows using existing service clients with throttling."""
 
-    _ENV_THROTTLE_KEYS = ("REACH_OUT_THROTTLE", "REACH_OUT_MAX_ACTIVE")
+    _ENV_THROTTLE_KEYS = (
+        "REACH_OUT_CONCURRENCY",
+        "REACH_OUT_CONCURRENCY_MAX"
+    )
 
     def __init__(
         self,
@@ -315,14 +318,17 @@ class ReachOut:
             return 0
 
     def _resolve_max_active(self, override: int | None) -> int | None:
-        if override is not None and override > 0:
-            return override
+        ceiling = self._max_active if self._max_active and self._max_active > 0 else None
 
+        if override is not None and override > 0:
+            return self._apply_ceiling(override, ceiling)
+
+        # Primary throttle from env
         env_limit = self._load_throttle_from_env()
         if env_limit is not None:
-            return env_limit
+            return self._apply_ceiling(env_limit, ceiling)
 
-        return self._max_active if self._max_active and self._max_active > 0 else None
+        return ceiling
 
     @classmethod
     def _load_throttle_from_env(cls) -> int | None:
@@ -338,3 +344,9 @@ class ReachOut:
                 continue
             return parsed
         return None
+
+    @staticmethod
+    def _apply_ceiling(limit: int, ceiling: int | None) -> int:
+        if ceiling is None:
+            return limit
+        return min(limit, ceiling)

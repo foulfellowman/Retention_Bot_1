@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Reach Out Settings</title>
+    <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header style="display: flex; justify-content: space-between; align-items: center; padding: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <a href="{{ url_for('index') }}" class="btn-export">&#8592; Back</a>
+            <strong>Reach Out Settings</strong>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <a href="{{ url_for('index') }}" class="btn-export">Dashboard</a>
+        </div>
+    </header>
+
+    <main class="console-container" style="padding: 20px; display: flex; gap: 24px; align-items: flex-start;">
+        <section class="card" style="flex: 1; margin-bottom: 20px;">
+            <h2>Current Configuration</h2>
+            <ul>
+                <li>Fetch limit default: {{ fetch_default or 20 }}</li>
+                <li>Throttle from environment: {{ throttle_limit if throttle_limit is not none else "not set" }}</li>
+                <li>Configured max active on service: {{ configured_limit if configured_limit is not none else "not set" }}</li>
+                <li>Active conversations (excluding done): {{ active_count if active_count is not none else "unknown" }}</li>
+            </ul>
+        </section>
+
+        <section class="card" style="flex: 1.2; margin-bottom: 20px;">
+            <h2>Preview Candidates</h2>
+            <form id="preview-form"
+                  hx-get="{{ url_for('reach_out_preview') }}"
+                  hx-target="#reach-out-preview"
+                  hx-swap="innerHTML"
+                  hx-trigger="submit">
+                <label for="preview-limit">Fetch limit</label>
+                <input id="preview-limit" name="limit" type="number" min="1" value="{{ limit }}" style="margin: 0 10px;">
+                <button type="submit" class="btn-export">Refresh Preview</button>
+            </form>
+            <div id="reach-out-preview" style="margin-top: 15px;">
+                {% include 'partials/reach_out_preview_table.html' %}
+            </div>
+        </section>
+
+        <section class="card" style="flex: 1; margin-bottom: 20px;">
+            <h2>Send Reach Out</h2>
+            <form id="reach-out-run-form"
+                  hx-post="{{ url_for('reach_out_run') }}"
+                  hx-target="#reach-out-run-result"
+                  hx-swap="innerHTML"
+                  hx-include="#preview-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                    <label for="max-active-input">Max active override</label>
+                    <input id="max-active-input" name="max_active" type="number" min="1" placeholder="Optional">
+                    <span style="font-size: 0.85em; color: #555;">Leave blank to use throttle defaults.</span>
+                </div>
+                <button type="submit" class="btn-export">Run Reach Out</button>
+            </form>
+            <div id="reach-out-run-result" style="margin-top: 15px;"></div>
+        </section>
+    </main>
+</body>
+</html>

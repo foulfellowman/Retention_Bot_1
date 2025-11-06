@@ -9,6 +9,7 @@ from wtforms import PasswordField, StringField, SubmitField
 from wtforms.validators import DataRequired
 import os
 import psutil
+from typing import Mapping
 from dotenv import load_dotenv
 
 from admin import Admin
@@ -81,7 +82,10 @@ def create_app() -> Flask:
         ),
     }
 
-    reach_out_limit_raw = os.getenv("REACH_OUT_MAX_ACTIVE")
+    reach_out_limit_raw = (
+        os.getenv("REACH_OUT_CONCURRENCY_MAX")
+        or os.getenv("REACH_OUT_MAX_ACTIVE")
+    )
     try:
         reach_out_limit = int(reach_out_limit_raw) if reach_out_limit_raw else None
     except ValueError:
@@ -90,6 +94,7 @@ def create_app() -> Flask:
     services["reach_out"] = ReachOut(
         gpt_client=services["gpt"],
         twilio_client=services["twilio"],
+        db_factory=DB,
         max_active_conversations=reach_out_limit,
     )
     app.config["services"] = services
@@ -99,6 +104,93 @@ def create_app() -> Flask:
     # ----------------------------
     def get_services():
         return current_app.config["services"]
+
+    def _parse_int(value, default=None):
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _fetch_reach_out_candidates_raw(limit, exclude_states=('done',)):
+        db = DB()
+        try:
+            fetch_method = getattr(db, "fetch_reach_out_candidates", None)
+            if not callable(fetch_method):
+                return [], "Candidate loader is unavailable."
+            rows = fetch_method(limit=limit, exclude_states=exclude_states)
+            return list(rows), None
+        except Exception as exc:
+            app.logger.exception("Failed to load reach-out candidates", exc_info=exc)
+            return [], "Unable to load candidates."
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
+
+    def _as_mapping(row: object) -> dict[str, object]:
+        if isinstance(row, Mapping):
+            return dict(row)
+        data: dict[str, object] = {}
+        for attr in dir(row):
+            if attr.startswith("_"):
+                continue
+            try:
+                value = getattr(row, attr)
+            except Exception:
+                continue
+            if callable(value):
+                continue
+            data[attr] = value
+        return data
+
+    def _summarize_candidates(rows):
+        summaries = []
+        for row in rows:
+            data = _as_mapping(row)
+            phone = (
+                    data.get("phone_number")
+                    or data.get("phone")
+                    or data.get("mobile")
+            )
+            name = data.get("name")
+            if not name:
+                parts = []
+                first = data.get("first_name")
+                last = data.get("last_name")
+                if first:
+                    parts.append(str(first).strip())
+                if last:
+                    parts.append(str(last).strip())
+                name = " ".join([p for p in parts if p])
+            summaries.append(
+                {
+                    "phone": phone,
+                    "name": name,
+                    "state": data.get("statename") or data.get("state"),
+                    "last_service": data.get("last_service") or data.get("primary_service"),
+                    "days_since": data.get("days_since_cancelled") or data.get("days_since"),
+                    "raw": data,
+                }
+            )
+        return summaries
+
+    def _current_active_conversations():
+        reach_out_service = get_services().get("reach_out")
+        if reach_out_service is None:
+            return None
+        state_db = DB()
+        try:
+            return reach_out_service._count_active_conversations(state_db)
+        except Exception:
+            return None
+        finally:
+            try:
+                state_db.close()
+            except Exception:
+                pass
 
     @login_manager.user_loader
     def load_user(user_id: str):
@@ -207,6 +299,7 @@ def create_app() -> Flask:
 
         # Build request-scoped objects
         db = DB()
+        reply = None
         try:
             # Record inbound
             db.insert_message(from_number, incoming_msg, twilio_sid)
@@ -289,20 +382,57 @@ def create_app() -> Flask:
         # Return a simple 200 OK to Twilio (we already replied via REST)
         return "OK", 200
 
+    @app.route('/reach-out/settings')
+    @login_required
+    def reach_out_settings():
+        fetch_default = _parse_int(os.getenv('REACH_OUT_FETCH_LIMIT'), 20)
+        limit = _parse_int(request.args.get('limit'), fetch_default)
+        if limit is None or limit <= 0:
+            limit = fetch_default or 20
+
+        raw_candidates, load_error = _fetch_reach_out_candidates_raw(limit)
+        candidates = _summarize_candidates(raw_candidates)
+
+        throttle_limit = _parse_int(os.getenv('REACH_OUT_CONCURRENCY'), 5)
+        configured_limit = _parse_int(os.getenv('REACH_OUT_CONCURRENCY_MAX'), 5)
+
+        active_count = _current_active_conversations()
+
+        return render_template(
+            'reach_out_settings.html',
+            limit=limit,
+            fetch_default=fetch_default,
+            candidates=candidates,
+            load_error=load_error,
+            throttle_limit=throttle_limit,
+            configured_limit=configured_limit,
+            active_count=active_count,
+        )
+
+    @app.route('/reach-out/preview')
+    @login_required
+    def reach_out_preview():
+        fetch_default = _parse_int(os.getenv('REACH_OUT_FETCH_LIMIT'), 20)
+        limit = _parse_int(request.args.get('limit'), fetch_default)
+        if limit is None or limit <= 0:
+            limit = fetch_default or 20
+
+        raw_candidates, load_error = _fetch_reach_out_candidates_raw(limit)
+        candidates = _summarize_candidates(raw_candidates)
+
+        return render_template(
+            'partials/reach_out_preview_table.html',
+            candidates=candidates,
+            load_error=load_error,
+            limit=limit,
+        )
+
     @app.route('/reach-out/run', methods=['POST'])
     @login_required
     def reach_out_run():
         reach_out_service = get_services().get('reach_out')
         if reach_out_service is None:
             return jsonify({'error': 'reach_out service unavailable'}), 500
-
-        def _parse_int(value, default=None):
-            if value is None:
-                return default
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                return default
 
         fetch_default = _parse_int(os.getenv('REACH_OUT_FETCH_LIMIT'), 20)
         fetch_limit = _parse_int(request.values.get('limit'), fetch_default)
@@ -311,11 +441,21 @@ def create_app() -> Flask:
 
         max_active_override = _parse_int(request.values.get('max_active'))
 
-        db = DB()
-        try:
-            candidates = db.fetch_reach_out_candidates(limit=fetch_limit, exclude_states=('done',))
-        finally:
-            db.close()
+        candidates, load_error = _fetch_reach_out_candidates_raw(fetch_limit)
+        if load_error:
+            if request.headers.get('HX-Request'):
+                return (
+                    render_template(
+                        'partials/reach_out_run_result.html',
+                        outcome=None,
+                        summary=None,
+                        results=[],
+                        error=load_error,
+                        limit=fetch_limit,
+                    ),
+                    500,
+                )
+            return jsonify({'error': load_error}), 500
 
         if not candidates:
             return jsonify({
@@ -327,6 +467,16 @@ def create_app() -> Flask:
         outcome = reach_out_service.send_bulk(candidates, max_active=max_active_override)
         summary = outcome.get('summary', {}) if isinstance(outcome, dict) else {}
         results = outcome.get('results', []) if isinstance(outcome, dict) else outcome
+
+        if request.headers.get('HX-Request'):
+            return render_template(
+                'partials/reach_out_run_result.html',
+                outcome=outcome if isinstance(outcome, dict) else None,
+                summary=summary,
+                results=results,
+                error=None,
+                limit=fetch_limit,
+            )
 
         return jsonify({
             'status': 'ok',
@@ -412,7 +562,8 @@ def create_app() -> Flask:
     @app.route('/conversations/<phone>/edit', methods=['GET', 'POST'])
     @login_required
     def conversation_edit(phone):
-        allowed_states = ['start', 'interested', 'action_sqft', 'confused', 'not_interested', 'follow_up', 'pause', 'stop', 'done']
+        allowed_states = ['start', 'interested', 'action_sqft', 'confused', 'not_interested', 'follow_up', 'pause',
+                          'stop', 'done']
         interested_states = {'interested', 'action_sqft'}
         db = DB()
 
@@ -515,4 +666,5 @@ def create_app() -> Flask:
 if __name__ == "__main__":
     app = create_app()
     app.run(debug=True)
+
 

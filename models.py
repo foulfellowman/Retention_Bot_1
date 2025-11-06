@@ -31,7 +31,7 @@ class Contact(Base):
     phone_number: Mapped[str] = mapped_column(
         String(15), ForeignKey("phone.phone_number"), primary_key=True
     )
-    customer_id: Mapped[Optional[int]] = mapped_column("customerid", Integer, nullable=True)
+    customer_id: Mapped[Optional[int]] = mapped_column("CustomerID", Integer, nullable=True)
     first_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     last_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 

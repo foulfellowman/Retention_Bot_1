@@ -1,0 +1,50 @@
+<div style="border: 1px solid #d0d0d0; border-radius: 6px; padding: 16px; background-color: #fafafa;">
+    {% if error %}
+    <div style="padding: 8px; background-color: #ffe8e8; border: 1px solid #ffb3b3; border-radius: 4px;">{{ error }}</div>
+    {% else %}
+        {% if summary %}
+        <div style="margin-bottom: 16px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background-color: #fff;">
+            <h3 style="margin-top: 0;">Run Summary</h3>
+            <ul style="margin: 0 0 0 18px; padding: 0;">
+                <li>Run ID: {{ outcome.get('run_id') if outcome else 'n/a' }}</li>
+                <li>Requested: {{ summary.get('requested') }}</li>
+                <li>Processed: {{ summary.get('processed') }}</li>
+                <li>Sent: {{ summary.get('sent') }}</li>
+                <li>Skipped: {{ summary.get('skipped') }}</li>
+                <li>Throttled: {{ summary.get('throttled') }}</li>
+                <li>Errors: {{ summary.get('errors') }}</li>
+                <li>Limit used: {{ limit }}</li>
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if results %}
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="text-align: left; border-bottom: 1px solid #ddd;">
+                    <th style="padding: 6px 4px;">Phone</th>
+                    <th style="padding: 6px 4px;">Status</th>
+                    <th style="padding: 6px 4px;">Message / Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in results %}
+                <tr style="border-bottom: 1px solid #efefef;">
+                    <td style="padding: 6px 4px;">{{ item.get('phone') or '—' }}</td>
+                    <td style="padding: 6px 4px;">{{ item.get('status') }}</td>
+                    <td style="padding: 6px 4px;">
+                        {% if item.get('status') == 'sent' %}
+                            {{ item.get('message') }}
+                        {% else %}
+                            {{ item.get('reason') or item.get('error') or '—' }}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="margin: 0;">No messages were sent.</p>
+        {% endif %}
+    {% endif %}
+</div>

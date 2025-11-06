@@ -23,6 +23,8 @@ from models import (
     TestRun,
     TwilioMessage,
     Usage,
+    Phone,
+    FSMState,
 )
 
 load_dotenv()
@@ -239,6 +241,7 @@ class DB:
             self.session.add(phone_row)
             self.session.flush()
         return phone_row
+
     def quick_query(self) -> None:
         bind = self.session.get_bind()
         if bind is None:
@@ -424,6 +427,54 @@ class DB:
             if parts:
                 name_map[phone] = " ".join(parts)
         return name_map
+
+    def fetch_reach_out_candidates(
+        self,
+        limit: int = 20,
+        exclude_states: Sequence[str] | None = None,
+    ) -> List[Contact]:
+        if limit is None or limit <= 0:
+            raise ValueError("limit must be a positive integer")
+
+        excluded = set((exclude_states or ())).union({"done"}) if exclude_states else {"done"}
+
+        stmt = (
+            select(Contact)
+            .join(Phone, Phone.phone_number == Contact.phone_number, isouter=True)
+            .join(FSMState, FSMState.phone_number == Contact.phone_number, isouter=True)
+            .where(
+                Contact.phone_number.isnot(None),
+                Contact.phone_number != "",
+            )
+            .order_by(Contact.last_name.is_(None), Contact.last_name, Contact.first_name)
+        )
+
+        rows = []
+        seen_numbers: set[str] = set()
+        for contact in self.session.scalars(stmt):
+            phone_number = (contact.phone_number or "").strip()
+            if not phone_number or phone_number in seen_numbers:
+                continue
+            seen_numbers.add(phone_number)
+            rows.append(contact)
+            if len(rows) >= limit:
+                break
+
+        if not excluded:
+            return rows
+
+        filtered: List[Contact] = []
+        for contact in rows:
+            state_name = None
+            phone = getattr(contact, "fsm_state", None)
+            if phone and getattr(phone, "statename", None):
+                state_name = phone.statename
+            elif contact.phone and contact.phone.fsm_state:
+                state_name = contact.phone.fsm_state.statename
+            if state_name and state_name.lower() in excluded:
+                continue
+            filtered.append(contact)
+        return filtered
 
 
 def ensure_test_run_tables(db_connection: "DB") -> None:
