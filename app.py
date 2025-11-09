@@ -113,7 +113,7 @@ def create_app() -> Flask:
         except (TypeError, ValueError):
             return default
 
-    def _fetch_reach_out_candidates_raw(limit, exclude_states=('done',)):
+    def _fetch_reach_out_candidates_raw(limit, exclude_states=('done', 'stop')):
         db = DB()
         try:
             fetch_method = getattr(db, "fetch_reach_out_candidates", None)
@@ -529,7 +529,7 @@ def create_app() -> Flask:
             return render_template('partials/conversations_tbody_inner.html',
                                    conversations=conversations,
                                    conversations_count=len(conversations),
-                                    selected_phone=selected_phone,
+                                   selected_phone=selected_phone,
                                    current_sort=(sort or ''),
                                    current_direction=direction)
         finally:
