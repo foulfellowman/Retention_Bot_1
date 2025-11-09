@@ -55,7 +55,7 @@ def create_app() -> Flask:
     # Build dependencies once per process; store on app config
     twilio_sid = os.getenv("TWILIO_SID")
     twilio_token = os.getenv("TWILIO_TOKEN")
-    twilio_messaging_sid = os.getenv("TWILIO_MESSAGINGID")
+    twilio_messaging_sid = os.getenv("TWILIO_MESSAGING_SID")
 
     twilio_client = TwilioSMSClient(
         twilio_sid,
