@@ -79,6 +79,9 @@ def create_app() -> Flask:
         "admin_user": Admin(
             username=os.getenv("ADMIN_USERNAME", "admin"),
             password=os.getenv("ADMIN_PASSWORD"),
+            api_key=os.getenv("OPENAI_API_KEY") or "",
+            twilio_sid=twilio_sid or "",
+            twilio_token=twilio_token or "",
         ),
     }
 
@@ -261,11 +264,31 @@ def create_app() -> Flask:
     def save_settings():
         user = get_current_user()
         if user:
-            user.update_settings(
-                request.form.get("api-key"),
-                request.form.get("twilio-sid"),
-                request.form.get("twilio-token"),
-            )
+            services = get_services()
+            api_key = request.form.get("api-key") or user.api_key
+            twilio_sid = request.form.get("twilio-sid") or user.twilio_sid
+            twilio_token = request.form.get("twilio-token") or user.twilio_token
+
+            user.update_settings(api_key, twilio_sid, twilio_token)
+
+            twilio_client = services.get("twilio")
+            if twilio_client:
+                if twilio_sid:
+                    twilio_client.set_sid(twilio_sid)
+                if twilio_token:
+                    twilio_client.set_token(twilio_token)
+                try:
+                    twilio_client.verify_credentials()
+                except Exception as exc:
+                    current_app.logger.warning("Updated Twilio credentials failed verification: %s", exc)
+
+            gpt_client = services.get("gpt")
+            if gpt_client and api_key:
+                try:
+                    gpt_client.set_api_key(api_key)
+                except Exception as exc:
+                    current_app.logger.warning("Unable to refresh GPT credentials: %s", exc)
+
         return render_template("partials/settings.html", user=user)
 
     @csrf.exempt

@@ -6,31 +6,49 @@
       hx-swap="innerHTML">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div style="margin-bottom: 15px;">
-        <label>API Key</label><br>
-        <input type="text" value="{{ user.api_key }}" id="api-key" disabled>
+        <label for="api-key">API Key</label><br>
+        <input
+          class="settings-input"
+          type="password"
+          name="api-key"
+          id="api-key"
+          value="{{ user.api_key or '' }}"
+          readonly>
         <button
           type="button"
-          onclick="document.getElementById('api-key').disabled = false;">
+          onclick="enableSettingsField('api-key')">
             Edit
         </button>
     </div>
 
     <div style="margin-bottom: 15px;">
-        <label>Twilio Account SID</label><br>
-        <input type="text" value="{{ user.twilio_sid }}" id="twilio-sid" disabled>
+        <label for="twilio-sid">Twilio Account SID</label><br>
+        <input
+          class="settings-input"
+          type="text"
+          name="twilio-sid"
+          id="twilio-sid"
+          value="{{ user.twilio_sid or '' }}"
+          readonly>
         <button
           type="button"
-          onclick="document.getElementById('twilio-sid').disabled = false;">
+          onclick="enableSettingsField('twilio-sid')">
             Edit
         </button>
     </div>
 
     <div style="margin-bottom: 15px;">
-        <label>Twilio Auth Token</label><br>
-        <input type="password" value="{{ user.twilio_token }}" id="twilio-token" disabled>
+        <label for="twilio-token">Twilio Auth Token</label><br>
+        <input
+          class="settings-input"
+          type="password"
+          name="twilio-token"
+          id="twilio-token"
+          value="{{ user.twilio_token or '' }}"
+          readonly>
         <button
           type="button"
-          onclick="document.getElementById('twilio-token').disabled = false;">
+          onclick="enableSettingsField('twilio-token')">
             Edit
         </button>
     </div>
@@ -39,3 +57,16 @@
         Save Settings
     </button>
 </form>
+
+<script>
+  window.enableSettingsField = window.enableSettingsField || function (id) {
+    var input = document.getElementById(id);
+    if (!input) return;
+    input.readOnly = false;
+    input.classList.add('settings-input--editable');
+    input.focus();
+    if (typeof input.select === "function") {
+      input.select();
+    }
+  };
+</script>

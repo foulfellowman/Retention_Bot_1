@@ -69,6 +69,14 @@ class GPTClient:
     def add_to_context(self, phone: str, role: str, content: str):
         self._contexts[phone].append({"role": role, "content": content})
 
+    def set_api_key(self, api_key: str | None) -> None:
+        if not api_key:
+            return
+        if api_key == self._api_key:
+            return
+        self._api_key = api_key
+        self._client = OpenAI(api_key=self._api_key, organization=self._organization)
+
     def generate_reasons(self, text: str, state: str) -> str:
         """
         Generate a natural-language explanation of why the input maps to a state.

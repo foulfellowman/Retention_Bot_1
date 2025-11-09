@@ -16,24 +16,40 @@
     <form hx-post="/save-settings" hx-target="#modal-container" hx-swap="innerHTML">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
-        <label>API Key</label><br>
-        <input type="text" value="{{ user.api_key }}" name="api-key" disabled id="api-key">
-        <button type="button" onclick="document.getElementById('api-key').disabled = false;">Edit</button>
+        <label for="modal-api-key">API Key</label><br>
+        <input class="settings-input" type="password" value="{{ user.api_key or '' }}" name="api-key" readonly id="modal-api-key">
+        <button type="button" onclick="enableSettingsField('modal-api-key')">Edit</button>
       </div>
 
       <div>
-        <label>Twilio SID</label><br>
-        <input type="text" value="{{ user.twilio_sid }}" name="twilio-sid" disabled id="twilio-sid">
-        <button type="button" onclick="document.getElementById('twilio-sid').disabled = false;">Edit</button>
+        <label for="modal-twilio-sid">Twilio SID</label><br>
+        <input class="settings-input" type="text" value="{{ user.twilio_sid or '' }}" name="twilio-sid" readonly id="modal-twilio-sid">
+        <button type="button" onclick="enableSettingsField('modal-twilio-sid')">Edit</button>
       </div>
 
       <div>
-        <label>Twilio Token</label><br>
-        <input type="password" value="{{ user.twilio_token }}" name="twilio-token" disabled id="twilio-token">
-        <button type="button" onclick="document.getElementById('twilio-token').disabled = false;">Edit</button>
+        <label for="modal-twilio-token">Twilio Token</label><br>
+        <input class="settings-input" type="password" value="{{ user.twilio_token or '' }}" name="twilio-token" readonly id="modal-twilio-token">
+        <button type="button" onclick="enableSettingsField('modal-twilio-token')">Edit</button>
       </div>
 
-      <button type="submit">Save Settings</button>
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button type="submit">Save Settings</button>
+        <button type="button" onclick="closeModal()">Cancel</button>
+      </div>
     </form>
   </div>
 </div>
+
+<script>
+  window.enableSettingsField = window.enableSettingsField || function (id) {
+    var input = document.getElementById(id);
+    if (!input) return;
+    input.readOnly = false;
+    input.classList.add('settings-input--editable');
+    input.focus();
+    if (typeof input.select === "function") {
+      input.select();
+    }
+  };
+</script>

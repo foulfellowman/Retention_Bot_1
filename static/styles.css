@@ -274,3 +274,18 @@ z-index: 1000;
   background-color: rgba(236, 201, 75, 0.2);
   border-color: rgba(236, 201, 75, 0.4);
 }
+
+.settings-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 20px; /* more right padding */
+  border: 1px solid #cbd5f5;
+  border-radius: 4px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.settings-input--editable {
+  background-color: #ebf8ff;
+  border-color: #3182ce;
+  box-shadow: 0 0 0 2px rgba(49, 130, 206, 0.2);
+}
