@@ -1,0 +1,53 @@
+[
+    {
+        "type": "function",
+        "function": {
+            "name": "get_user_context",
+            "description": "Read current user state needed for routing and reply.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "phone_number": {"type": "string", "description": "User phone number to key lookup"}
+                },
+                "required": ["phone_number"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_fsm",
+            "description": "Apply a single IntentionFlow trigger to advance the state machine.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "event_name": {
+                        "type": "string",
+                        "enum": [
+                            "receive_positive_response",
+                            "go_to_sqft",
+                            "receive_followup",
+                            "complete_flow",
+                            "receive_negative_response",
+                            "user_stopped",
+                            "retry_confused",
+                            "pause_flow",
+                            "resume_flow",
+                            "polite_ack"
+                        ]
+                    },
+                    "kwargs": {"type": "object", "description": "Optional trigger kwargs", "default": {}}
+                },
+                "required": ["event_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_fsm_reply",
+            "description": "Return the Twilio-ready reply string for the current FSM state.",
+            "parameters": {"type": "object", "properties": {}, "required": []}
+        }
+    }
+]
