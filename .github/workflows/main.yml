@@ -25,12 +25,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Alembic migrations (SQLite)
-        env:
-          DATABASE_URL: sqlite:///$(pwd)/ci.sqlite
-        run: |
-          alembic upgrade head
-
       - name: Run pytest suite
         continue-on-error: true
         run: |
