@@ -104,14 +104,29 @@ class GPTClient:
         phone = user.phone_number
         context_messages = list(self._contexts.get(phone, []))
         messages = [{"role": "system", "content": self._base_instructions}] + context_messages
+        append_user_turn = True
         try:
             if db_instance:
                 previous_messages = get_session_messages_no_base_prompt(db_instance, user.phone_number)
+                previous_messages = list(reversed(previous_messages))
                 messages.extend(previous_messages)
+                if previous_messages:
+                    last_message = previous_messages[-1]
+                    if (
+                        isinstance(last_message, dict)
+                        and last_message.get("role") == "user"
+                        and last_message.get("content") == user_input
+                    ):
+                        append_user_turn = False
+                    else:
+                        append_user_turn = True
+                else:
+                    append_user_turn = True
         except Exception as e:
             print(e)
 
-        messages.append({"role": "user", "content": user_input})
+        if append_user_turn:
+            messages.append({"role": "user", "content": user_input})
 
         force_tool_next = False  # <- set when we reject/no-op a transition
 
