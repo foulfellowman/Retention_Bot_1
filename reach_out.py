@@ -310,7 +310,7 @@ class ReachOut:
     @staticmethod
     def _count_active_conversations(state_db: DB) -> int:
         session = state_db.session
-        stmt = select(func.count()).select_from(FSMState).where(func.coalesce(FSMState.statename, '') != 'done')
+        stmt = select(func.count()).select_from(FSMState).where(func.coalesce(FSMState.statename, '').notin_(['done', 'stop', 'pause']))
         result = session.execute(stmt).scalar_one()
         return int(result or 0)
 
