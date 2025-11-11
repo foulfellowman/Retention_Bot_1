@@ -63,6 +63,7 @@ class ReachOut:
         error_count = 0
 
         limit = self._resolve_max_active(max_active)
+        outbound_enabled = self._outbound_enabled()
         run_db: DB | None = None
         run_log: ReachOutRun | None = None
 
@@ -79,6 +80,7 @@ class ReachOut:
                     "max_active_limit": limit,
                     "reset_context": reset_context,
                     "template_provided": bool(message_template),
+                    "outbound_enabled": outbound_enabled,
                 },
             )
             run_db.session.add(run_log)
@@ -112,6 +114,18 @@ class ReachOut:
                             "row": row,
                             "status": "skipped",
                             "reason": "missing phone",
+                        }
+                    )
+                    continue
+
+                if not outbound_enabled:
+                    skipped_count += 1
+                    results.append(
+                        {
+                            "run_id": run_id,
+                            "phone": phone,
+                            "status": "skipped",
+                            "reason": "outbound disabled",
                         }
                     )
                     continue
@@ -350,3 +364,11 @@ class ReachOut:
         if ceiling is None:
             return limit
         return min(limit, ceiling)
+
+    @staticmethod
+    def _outbound_enabled() -> bool:
+        raw = os.getenv("OUTBOUND_LIVE_TOGGLE", "0")
+        try:
+            return int(raw) == 1
+        except (TypeError, ValueError):
+            return False
