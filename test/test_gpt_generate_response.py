@@ -164,13 +164,12 @@ def test_happy_tool_short_circuit_on_get_fsm_reply(fake_dependencies, monkeypatc
     out = gpt.generate_response("user says hi", user, db)
     assert out == "TEMPLATE_REPLY"
 
-    # tool execution order & logging
+    # tool execution order
     assert fake_dependencies.tool_get_user_context.called
     assert fake_dependencies.tool_update_fsm.called
     assert fake_dependencies.tool_get_fsm_reply.called
-
-    # Should have logged the template reply once
-    fake_dependencies.log_message_to_db.assert_called_once_with(db, user.phone_number, "TEMPLATE_REPLY")
+    # generate_response no longer logs automatically
+    fake_dependencies.log_message_to_db.assert_not_called()
 
 
 def test_no_tool_calls_forces_template_reply(fake_dependencies, monkeypatch):
@@ -235,12 +234,19 @@ def test_context_appended_on_reply(fake_dependencies, monkeypatch):
     user = FakeUser()
     db = FakeDB()
 
-    assert gpt._context == []
+    assert gpt.get_context(user.phone_number) == []
     out = gpt.generate_response("hello", user, db)
     assert out == "TEMPLATE_REPLY"
+    # No auto append until we log the message
+    assert gpt.get_context(user.phone_number) == []
 
-    # The assistant reply should be appended to _context
-    assert gpt._context[-1] == {"role": "assistant", "content": "TEMPLATE_REPLY"}
+    gpt.insert_with_db_instance(db, out, user, twilio_sid="SM123")
+
+    convo = gpt.get_context(user.phone_number)
+    assert convo[-1] == {"role": "assistant", "content": "TEMPLATE_REPLY"}
+    fake_dependencies.log_message_to_db.assert_called_once_with(
+        db, user.phone_number, "TEMPLATE_REPLY", twilio_sid="SM123"
+    )
 
 
 def test_update_fsm_is_passed_kwargs_if_present(fake_dependencies, monkeypatch):

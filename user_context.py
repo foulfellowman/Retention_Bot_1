@@ -26,7 +26,8 @@ class UserContext:
         self._phone_number = phone_number
         self._ensure_phone_in_db()
         self.fsm = IntentionFlow(name=phone_number)
-        self._load_existing_fsm_flags()
+        # Ensure in-memory FSM reflects persisted state (and inserts a row if missing)
+        self.get_current_state()
 
     def trigger_event(self, event_name: str, verbose=False, **kwargs):
         """
@@ -105,9 +106,6 @@ class UserContext:
         If the row doesn't exist it is inserted; if it exists but is
         different from the in-memory FSM state, it is updated.
         """
-        current_mem_state = self.fsm.state
-        current_interest = bool(getattr(self.fsm, "was_ever_interested", False))
-
         db_connection = DB()
         session = db_connection.session
 
@@ -116,29 +114,27 @@ class UserContext:
             if state is None:
                 state = FSMState(
                     phone_number=self._phone_number,
-                    statename=current_mem_state,
-                    was_interested=current_interest,
+                    statename=self.fsm.state,
+                    was_interested=bool(getattr(self.fsm, "was_ever_interested", False)),
                 )
                 session.add(state)
                 session.commit()
-                return current_mem_state
+                return state.statename
 
-            if state.was_interested:
-                self.fsm.was_ever_interested = True
+            if state.statename and state.statename != self.fsm.state:
+                self.fsm.state = state.statename
 
             updated = False
-            if state.statename != current_mem_state:
-                state.statename = current_mem_state
-                updated = True
-
-            if current_interest and not state.was_interested:
+            if state.was_interested:
+                self.fsm.was_ever_interested = True
+            elif getattr(self.fsm, "was_ever_interested", False):
                 state.was_interested = True
                 updated = True
 
             if updated:
                 session.commit()
 
-            return state.statename
+            return self.fsm.state
         finally:
             db_connection.close()
 
@@ -150,16 +146,6 @@ class UserContext:
             if session.get(Phone, self._phone_number) is None:
                 session.add(Phone(phone_number=self._phone_number))
                 session.commit()
-        finally:
-            db_connection.close()
-
-    def _load_existing_fsm_flags(self):
-        db_connection = DB()
-        session = db_connection.session
-        try:
-            state = session.get(FSMState, self._phone_number)
-            if state and state.was_interested:
-                self.fsm.was_ever_interested = True
         finally:
             db_connection.close()
 

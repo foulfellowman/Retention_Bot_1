@@ -106,6 +106,7 @@ def test_insert_message_from_gpt_records_outbound(build_db):
     assert added_message.phone_number == "1112223333"
     assert added_message.direction == "outbound"
     assert added_message.body == "bot reply"
+    assert added_message.twilio_sid is None
     assert added_message.message_data == {"role": "developer", "content": "bot reply"}
     session.commit.assert_called_once()
 

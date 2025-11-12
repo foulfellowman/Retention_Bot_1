@@ -11,11 +11,12 @@ class TwilioSMSClient:
         self._validator = RequestValidator(auth_token) if auth_token else None
 
     def send_sms(self, to_phone: str, message: str):
-        self._client.messages.create(
+        twilio_message = self._client.messages.create(
             messaging_service_sid=self._messaging_sid,
             to=to_phone,
             body=message
         )
+        return getattr(twilio_message, "sid", None)
 
     def validate_webhook(self, signature: str | None, url: str, params: dict | None) -> bool:
         """

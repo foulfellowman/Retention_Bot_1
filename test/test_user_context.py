@@ -59,10 +59,22 @@ class FakeDB:
 
 @pytest.fixture
 def db_store(monkeypatch):
-    def _make(*, phone_present: bool = False):
+    def _make(
+        *,
+        phone_present: bool = False,
+        state_present: bool = False,
+        state_name: str = "start",
+        was_interested: bool = False,
+    ):
         store = InMemoryStore()
         if phone_present:
             store.phones[PHONE_NUMBER] = Phone(phone_number=PHONE_NUMBER)
+        if state_present:
+            store.states[PHONE_NUMBER] = FSMState(
+                phone_number=PHONE_NUMBER,
+                statename=state_name,
+                was_interested=was_interested,
+            )
 
         def factory():
             return FakeDB(store)
@@ -122,21 +134,22 @@ def test_init_inserts_phone_when_missing(db_store):
     user = uc_mod.UserContext(PHONE_NUMBER)
 
     assert PHONE_NUMBER in store.phones
-    assert store.sessions[0].commits == 1
+    assert PHONE_NUMBER in store.states
+    assert store.states[PHONE_NUMBER].statename == "start"
     assert user.get_current_state() == "start"
 
 
 def test_init_skips_insert_when_phone_exists(db_store):
-    store = db_store(phone_present=True)
+    store = db_store(phone_present=True, state_present=True, state_name="follow_up")
 
-    uc_mod.UserContext(PHONE_NUMBER)
+    user = uc_mod.UserContext(PHONE_NUMBER)
 
     assert store.phones[PHONE_NUMBER].phone_number == PHONE_NUMBER
-    assert store.sessions[0].commits == 0
+    assert user.get_current_state() == "follow_up"
 
 
 def test_trigger_event_calls_flow_and_updates_state(db_store):
-    db_store(phone_present=True)
+    store = db_store(phone_present=True, state_present=True)
     user = uc_mod.UserContext(PHONE_NUMBER)
 
     ok = user.trigger_event("receive_positive_response", verbose=True)
@@ -144,6 +157,7 @@ def test_trigger_event_calls_flow_and_updates_state(db_store):
     assert ok is True
     assert user.get_current_state() == "interested"
     assert user.get_fsm_snapshot()["flow_state"] == "interested"
+    assert store.states[PHONE_NUMBER].statename == "interested"
 
 
 def test_trigger_event_raises_for_unknown_event(db_store):
@@ -155,14 +169,16 @@ def test_trigger_event_raises_for_unknown_event(db_store):
 
 
 def test_change_state_from_intent_maps_and_triggers(db_store):
-    db_store(phone_present=True)
+    store = db_store(phone_present=True, state_present=True)
     user = uc_mod.UserContext(PHONE_NUMBER)
 
     user.change_state_from_intent("sqft_ready")
     assert user.get_current_state() == "action_sqft"
+    assert store.states[PHONE_NUMBER].statename == "action_sqft"
 
     user.change_state_from_intent("followup")
     assert user.get_current_state() == "follow_up"
+    assert store.states[PHONE_NUMBER].statename == "follow_up"
 
 
 def test_set_user_info_and_context_strings(db_store):
@@ -221,3 +237,22 @@ def test_reply_for_state_variants(db_store):
     user.trigger_event("retry_confused")
     snap = user.get_fsm_snapshot()
     assert "clarify" in user.reply_for_state(snap)
+
+
+def test_get_current_state_hydrates_interest_flag(db_store):
+    store = db_store(phone_present=True, state_present=True, was_interested=True, state_name="follow_up")
+
+    user = uc_mod.UserContext(PHONE_NUMBER)
+
+    assert user.get_current_state() == "follow_up"
+    assert user.fsm.was_ever_interested is True
+
+
+def test_get_current_state_promotes_interest_flag_when_missing(db_store):
+    store = db_store(phone_present=True, state_present=True, was_interested=False)
+    user = uc_mod.UserContext(PHONE_NUMBER)
+
+    user.fsm.was_ever_interested = True
+    user.get_current_state()
+
+    assert store.states[PHONE_NUMBER].was_interested is True

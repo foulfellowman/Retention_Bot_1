@@ -1,6 +1,7 @@
 import json
 import logging
 # app.py
+from datetime import datetime, timezone
 from flask import Flask, request, render_template, redirect, url_for, current_app, make_response, jsonify
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
 from flask_wtf import FlaskForm
@@ -13,9 +14,9 @@ from typing import Mapping
 from dotenv import load_dotenv
 
 from admin import Admin
-from db import DB
+from db import DB, log_twilio_message_record
 from models import FSMState
-from gpt import GPTClient, GPTServiceError, log_message_to_db
+from gpt import GPTClient, GPTServiceError
 from logging_config import configure_logging
 from reach_out import ReachOut
 from twilio_test import TwilioSMSClient
@@ -299,6 +300,7 @@ def create_app() -> Flask:
         signature = request.headers.get("X-Twilio-Signature")
         services = get_services()
         twilio_client = services["twilio"]
+        gpt = services["gpt"]
 
         try:
             is_valid = twilio_client.validate_webhook(signature, request.url, form_params)
@@ -330,6 +332,8 @@ def create_app() -> Flask:
             stop_keywords = {"stop", "stopall", "unsubscribe", "cancel", "end", "quit"}
             normalized_msg = incoming_msg.lower()
 
+            reply_user_ctx: UserContext | None = None
+
             if normalized_msg in stop_keywords:
                 try:
                     state = db.session.get(FSMState, from_number)
@@ -350,20 +354,12 @@ def create_app() -> Flask:
                     )
 
                 reply = "Messages Stopped"
-                try:
-                    log_message_to_db(db.session, from_number, reply)
-                except Exception as record_exc:
-                    current_app.logger.exception(
-                        "Failed to record stop acknowledgement for %s",
-                        from_number,
-                        exc_info=record_exc,
-                    )
             else:
                 # Build a proper UserContext (fixes the previous string misuse)
                 user_ctx = UserContext(str(from_number))
+                reply_user_ctx = user_ctx
 
                 # Generate reply via GPT
-                gpt = services["gpt"]
                 try:
                     reply = gpt.generate_response(incoming_msg, user_ctx, db)
                 except GPTServiceError as exc:
@@ -377,14 +373,6 @@ def create_app() -> Flask:
                         exc_info=exc,
                     )
                     reply = fallback_reply
-                    try:
-                        gpt.insert_with_db_instance(db, reply, user_ctx)
-                    except Exception as record_exc:
-                        current_app.logger.exception(
-                            "Failed to record fallback reply for %s",
-                            from_number,
-                            exc_info=record_exc,
-                        )
                 except Exception as exc:
                     current_app.logger.exception(
                         "Unexpected failure generating response for %s",
@@ -394,7 +382,35 @@ def create_app() -> Flask:
 
             # Send reply out-of-band via Twilio REST
             if reply and int(os.getenv("OUTBOUND_LIVE_TOGGLE", 0)) == 1:
-                twilio_client.send_sms(to_phone=from_number, message=reply)
+                twilio_sid = None
+                try:
+                    twilio_sid = twilio_client.send_sms(to_phone=from_number, message=reply)
+                except Exception as exc:
+                    current_app.logger.exception(
+                        "Failed to send SMS reply for %s", from_number, exc_info=exc
+                    )
+                else:
+                    sent_at = datetime.now(timezone.utc)
+                    try:
+                        if twilio_sid:
+                            log_twilio_message_record(
+                                db,
+                                phone_number=from_number,
+                                twilio_sid=twilio_sid,
+                                direction="outbound",
+                                body=reply,
+                                sent_at=sent_at,
+                            )
+                        if reply_user_ctx is not None:
+                            gpt.insert_with_db_instance(db, reply, reply_user_ctx, twilio_sid=twilio_sid)
+                        else:
+                            db.insert_message_from_gpt(from_number, reply, twilio_sid=twilio_sid)
+                    except Exception as record_exc:
+                        current_app.logger.exception(
+                            "Failed to record outbound reply for %s",
+                            from_number,
+                            exc_info=record_exc,
+                        )
 
         finally:
             try:
@@ -625,21 +641,22 @@ def create_app() -> Flask:
 
                 if new_state == "stop":
                     stop_reply = "Messages Stopped"
-                    try:
-                        log_message_to_db(db.session, phone, stop_reply)
-                    except Exception as record_exc:
-                        current_app.logger.exception(
-                            "Failed to record stop acknowledgement for %s via edit",
-                            phone,
-                            exc_info=record_exc,
-                        )
-
                     if int(os.getenv("OUTBOUND_LIVE_TOGGLE", 0)) == 1:
                         try:
                             services = get_services()
                             twilio_client = services.get("twilio")
                             if twilio_client:
-                                twilio_client.send_sms(to_phone=phone, message=stop_reply)
+                                twilio_sid = twilio_client.send_sms(to_phone=phone, message=stop_reply)
+                                if twilio_sid:
+                                    log_twilio_message_record(
+                                        db,
+                                        phone_number=phone,
+                                        twilio_sid=twilio_sid,
+                                        direction="outbound",
+                                        body=stop_reply,
+                                        sent_at=datetime.now(timezone.utc),
+                                    )
+                                db.insert_message_from_gpt(phone, stop_reply, twilio_sid=twilio_sid)
                         except Exception as send_exc:
                             current_app.logger.exception(
                                 "Failed to send stop acknowledgement for %s via edit",

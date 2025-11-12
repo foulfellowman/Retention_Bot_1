@@ -269,16 +269,42 @@ class DB:
         self.session.add(message)
         self.session.commit()
 
-    def insert_message_from_gpt(self, phone: str, gpt_input: str) -> None:
+    def insert_message_from_gpt(self, phone: str, gpt_input: str, twilio_sid: Optional[str] = None) -> None:
         message = Message(
             phone_number=phone,
             direction="outbound",
             body=gpt_input,
+            twilio_sid=twilio_sid,
             message_data={"role": "developer", "content": gpt_input},
             sent_at=datetime.utcnow(),
         )
         self.session.add(message)
         self.session.commit()
+
+
+def log_twilio_message_record(
+    db_connection: DB | Session,
+    phone_number: str,
+    twilio_sid: str,
+    direction: str,
+    body: Optional[str],
+    sent_at: Optional[datetime] = None,
+) -> None:
+    """Persist a TwilioMessage row linked to the phone number."""
+    session = getattr(db_connection, "session", db_connection)
+    ensure_phone = getattr(db_connection, "_ensure_phone", None)
+    if callable(ensure_phone):
+        ensure_phone(phone_number)
+
+    record = TwilioMessage(
+        twilio_sid=twilio_sid,
+        phone_number=phone_number,
+        direction=direction,
+        body=body,
+        sent_at=sent_at or datetime.utcnow(),
+    )
+    session.add(record)
+    session.commit()
 
     def SQL_latest_message_per_phone(self):
         stmt = (

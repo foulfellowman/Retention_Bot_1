@@ -16,6 +16,7 @@ class DummyTwilio:
         if to_phone in self.fail_numbers:
             raise RuntimeError("twilio failure")
         self.sent.append((to_phone, message))
+        return f"SM{len(self.sent):05d}"
 
 
 class DummyGPT:
@@ -26,8 +27,8 @@ class DummyGPT:
     def set_context(self, phone, value):
         self.context[phone] = list(value)
 
-    def insert_with_db_instance(self, db_instance, body, user):
-        self.logged.append((db_instance, body, user.phone_number))
+    def insert_with_db_instance(self, db_instance, body, user, twilio_sid=None):
+        self.logged.append((db_instance, body, user.phone_number, twilio_sid))
 
 
 class DummyUserContext:
@@ -127,6 +128,7 @@ def make_reach_out(monkeypatch, gpt=None, twilio=None, db_factory=None, max_acti
     ro = ReachOut(gpt, twilio, db_factory=db_factory, max_active_conversations=max_active)
     ro._count_active_conversations = lambda db: 0  # default no throttling
     monkeypatch.setattr(reach_out, "ReachOutRun", DummyReachOutRun)
+    monkeypatch.setenv("OUTBOUND_LIVE_TOGGLE", "1")
     return ro, gpt, twilio, db_factory
 
 
@@ -299,3 +301,21 @@ def test_send_bulk_returns_summary(monkeypatch):
     assert run_log.errors == 1
     assert isinstance(run_log.finished_at, datetime)
     assert run_db.closed
+
+
+def test_send_bulk_respects_outbound_toggle(monkeypatch):
+    ro, _, twilio, _ = make_reach_out(monkeypatch)
+    monkeypatch.setenv("OUTBOUND_LIVE_TOGGLE", "0")
+
+    ro._build_user_context = lambda _self, row: DummyUserContext(row["phone_number"])  # type: ignore[assignment]
+
+    rows = [{"phone_number": "555"}]
+    outcome = ro.send_bulk(rows)
+    summary = outcome["summary"]
+
+    assert summary["sent"] == 0
+    assert summary["skipped"] == 1
+    assert twilio.sent == []
+
+    result = outcome["results"][0]
+    assert result["reason"] == "outbound disabled"

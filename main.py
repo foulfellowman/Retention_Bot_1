@@ -99,6 +99,7 @@ class ConversationApp:
         with self.db_factory() as db:
             db.insert_message(self.phone, text)
             reply = self.gpt.generate_response(text, self.user, db)
+            self.gpt.insert_with_db_instance(db, reply, self.user)
         return reply
 
     def loop(self) -> None:

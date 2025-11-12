@@ -92,8 +92,11 @@ def test_generate_response_short_circuits_on_get_fsm_reply(monkeypatch):
 
     reply = gpt.generate_response("hi", user, db)
     assert reply == "TEMPLATE::active"  # came from tool_get_fsm_reply
-    assert gpt._context[-1] == {"role": "assistant", "content": "TEMPLATE::active"}
-    log_message_to_db.assert_called_once_with(db, user.phone_number, "TEMPLATE::active")
+    assert gpt.get_context(user.phone_number) == []
+
+    gpt.insert_with_db_instance(db, reply, user, twilio_sid="SM500")
+    assert gpt.get_context(user.phone_number)[-1] == {"role": "assistant", "content": "TEMPLATE::active"}
+    log_message_to_db.assert_called_once_with(db, user.phone_number, "TEMPLATE::active", twilio_sid="SM500")
 
 
 # ---------- 3) Usage inside generate_response: forced fallback when no tools ----------
@@ -115,5 +118,7 @@ def test_generate_response_forces_tool_when_no_tools(monkeypatch):
 
     reply = gpt.generate_response("anything", user, db)
     assert reply == "TEMPLATE::active"  # forced path uses tool_get_fsm_reply
-    assert gpt._context[-1] == {"role": "assistant", "content": "TEMPLATE::active"}
-    log_message_to_db.assert_called_once_with(db, user.phone_number, "TEMPLATE::active")
+    assert gpt.get_context(user.phone_number) == []
+    gpt.insert_with_db_instance(db, reply, user, twilio_sid="SM777")
+    assert gpt.get_context(user.phone_number)[-1] == {"role": "assistant", "content": "TEMPLATE::active"}
+    log_message_to_db.assert_called_once_with(db, user.phone_number, "TEMPLATE::active", twilio_sid="SM777")
