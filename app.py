@@ -14,7 +14,7 @@ from typing import Mapping
 from dotenv import load_dotenv
 
 from admin import Admin
-from db import DB, log_twilio_message_record
+from db import DB
 from models import FSMState
 from gpt import GPTClient, GPTServiceError
 from logging_config import configure_logging
@@ -393,8 +393,7 @@ def create_app() -> Flask:
                     sent_at = datetime.now(timezone.utc)
                     try:
                         if twilio_sid:
-                            log_twilio_message_record(
-                                db,
+                            db.log_twilio_message_record(
                                 phone_number=from_number,
                                 twilio_sid=twilio_sid,
                                 direction="outbound",
@@ -648,8 +647,7 @@ def create_app() -> Flask:
                             if twilio_client:
                                 twilio_sid = twilio_client.send_sms(to_phone=phone, message=stop_reply)
                                 if twilio_sid:
-                                    log_twilio_message_record(
-                                        db,
+                                    db.log_twilio_message_record(
                                         phone_number=phone,
                                         twilio_sid=twilio_sid,
                                         direction="outbound",
@@ -706,5 +704,3 @@ def create_app() -> Flask:
 if __name__ == "__main__":
     app = create_app()
     app.run(debug=True)
-
-
