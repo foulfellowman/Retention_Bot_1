@@ -46,11 +46,11 @@ def _env_flag(name: str) -> Optional[bool]:
 
 def _build_engine_url() -> Union[str, URL]:
     url = (
-        os.getenv("SQLALCHEMY_DATABASE_URI")
-        or os.getenv("PG_DSN")
-        or os.getenv("PG_URL")
-        or os.getenv("DATABASE_URL")
-        or os.getenv("PGBOUNCER_DSN")
+            os.getenv("SQLALCHEMY_DATABASE_URI")
+            or os.getenv("PG_DSN")
+            or os.getenv("PG_URL")
+            or os.getenv("DATABASE_URL")
+            or os.getenv("PGBOUNCER_DSN")
     )
     if url:
         return url
@@ -118,9 +118,9 @@ def _resolve_pool_class():
     from sqlalchemy.pool import NullPool, QueuePool, StaticPool
 
     choice = (
-        os.getenv("SQLALCHEMY_POOL_CLASS")
-        or os.getenv("DB_POOL_CLASS")
-        or ""
+            os.getenv("SQLALCHEMY_POOL_CLASS")
+            or os.getenv("DB_POOL_CLASS")
+            or ""
     ).strip().lower()
     if choice:
         return {
@@ -130,12 +130,12 @@ def _resolve_pool_class():
         }.get(choice, NullPool)
 
     if any(
-        flag is True
-        for flag in (
-            _env_flag("SQLALCHEMY_POOL_ENABLED"),
-            _env_flag("SQLALCHEMY_QUEUE_POOL"),
-            _env_flag("DB_POOL_ENABLED"),
-        )
+            flag is True
+            for flag in (
+                    _env_flag("SQLALCHEMY_POOL_ENABLED"),
+                    _env_flag("SQLALCHEMY_QUEUE_POOL"),
+                    _env_flag("DB_POOL_ENABLED"),
+            )
     ):
         return QueuePool
 
@@ -281,30 +281,29 @@ class DB:
         self.session.add(message)
         self.session.commit()
 
+    def log_twilio_message_record(
+            db_connection: DB | Session,
+            phone_number: str,
+            twilio_sid: str,
+            direction: str,
+            body: Optional[str],
+            sent_at: Optional[datetime] = None,
+    ) -> None:
+        """Persist a TwilioMessage row linked to the phone number."""
+        session = getattr(db_connection, "session", db_connection)
+        ensure_phone = getattr(db_connection, "_ensure_phone", None)
+        if callable(ensure_phone):
+            ensure_phone(phone_number)
 
-def log_twilio_message_record(
-    db_connection: DB | Session,
-    phone_number: str,
-    twilio_sid: str,
-    direction: str,
-    body: Optional[str],
-    sent_at: Optional[datetime] = None,
-) -> None:
-    """Persist a TwilioMessage row linked to the phone number."""
-    session = getattr(db_connection, "session", db_connection)
-    ensure_phone = getattr(db_connection, "_ensure_phone", None)
-    if callable(ensure_phone):
-        ensure_phone(phone_number)
-
-    record = TwilioMessage(
-        twilio_sid=twilio_sid,
-        phone_number=phone_number,
-        direction=direction,
-        body=body,
-        sent_at=sent_at or datetime.utcnow(),
-    )
-    session.add(record)
-    session.commit()
+        record = TwilioMessage(
+            twilio_sid=twilio_sid,
+            phone_number=phone_number,
+            direction=direction,
+            body=body,
+            sent_at=sent_at or datetime.utcnow(),
+        )
+        session.add(record)
+        session.commit()
 
     def SQL_latest_message_per_phone(self):
         stmt = (
@@ -338,10 +337,10 @@ def log_twilio_message_record(
         return out
 
     def fetch_conversations(
-        self,
-        q: Optional[str] = None,
-        sort: Optional[str] = None,
-        direction: Optional[str] = None,
+            self,
+            q: Optional[str] = None,
+            sort: Optional[str] = None,
+            direction: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         latest_messages = (
             select(
@@ -455,9 +454,9 @@ def log_twilio_message_record(
         return name_map
 
     def fetch_reach_out_candidates(
-        self,
-        limit: int = 20,
-        exclude_states: Sequence[str] | None = None,
+            self,
+            limit: int = 20,
+            exclude_states: Sequence[str] | None = None,
     ) -> List[Contact]:
         if limit is None or limit <= 0:
             raise ValueError("limit must be a positive integer")
@@ -510,10 +509,10 @@ def ensure_test_run_tables(db_connection: "DB") -> None:
 
 
 def insert_test_run(
-    db_connection: "DB",
-    started_at: Optional[datetime] = None,
-    total_passed: int = 0,
-    total_failed: int = 0,
+        db_connection: "DB",
+        started_at: Optional[datetime] = None,
+        total_passed: int = 0,
+        total_failed: int = 0,
 ) -> int:
     run = TestRun(
         started_at=started_at or datetime.utcnow(),
@@ -527,11 +526,11 @@ def insert_test_run(
 
 
 def update_test_run(
-    db_connection: "DB",
-    run_id: int,
-    finished_at: Optional[datetime] = None,
-    total_passed: Optional[int] = None,
-    total_failed: Optional[int] = None,
+        db_connection: "DB",
+        run_id: int,
+        finished_at: Optional[datetime] = None,
+        total_passed: Optional[int] = None,
+        total_failed: Optional[int] = None,
 ) -> None:
     run = db_connection.session.get(TestRun, run_id)
     if run is None:
@@ -547,14 +546,14 @@ def update_test_run(
 
 
 def insert_test_case(
-    db_connection: "DB",
-    run_id: int,
-    name: str,
-    result: str,
-    steps_verified: int,
-    total_steps: int,
-    duration_seconds: Optional[float] = None,
-    finished_at: Optional[datetime] = None,
+        db_connection: "DB",
+        run_id: int,
+        name: str,
+        result: str,
+        steps_verified: int,
+        total_steps: int,
+        duration_seconds: Optional[float] = None,
+        finished_at: Optional[datetime] = None,
 ) -> int:
     case = TestCase(
         run_id=run_id,
