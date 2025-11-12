@@ -180,8 +180,6 @@ class GPTClient:
                         result = tool_get_fsm_reply(user)
                         data = json.loads(result)
                         reply = data["reply"]
-                        self.insert_with_db_instance(db_instance, reply, user)
-
                         return reply
 
                     else:
@@ -223,16 +221,14 @@ class GPTClient:
             # Otherwise: FORCE template reply as a safe fallback
             data = json.loads(tool_get_fsm_reply(user))
             reply = data["reply"]
-            # self._contexts[phone].append({"role": "assistant", "content": reply})  # DOUBLE MESSAGE ISSUE
-            self.insert_with_db_instance(db_instance, reply, user)
             return reply
 
-    def insert_with_db_instance(self, db_instance, reply, user):
+    def insert_with_db_instance(self, db_instance, reply, user, twilio_sid: str | None = None):
         phone = user.phone_number
         self._contexts[phone].append({"role": "assistant", "content": reply})
         try:
             if db_instance:
-                log_message_to_db(db_instance, phone, reply)
+                log_message_to_db(db_instance, phone, reply, twilio_sid=twilio_sid)
         except Exception as e:
             print(e)
 
@@ -266,7 +262,7 @@ class GPTClient:
             raise GPTServiceError("Chat completion failed") from exc
 
 
-def log_message_to_db(db_instance, phone_number: str, reply: str):
+def log_message_to_db(db_instance, phone_number: str, reply: str, twilio_sid: str | None = None):
     """Log assistant reply to the message table."""
     session = getattr(db_instance, "session", db_instance)
 
@@ -274,6 +270,7 @@ def log_message_to_db(db_instance, phone_number: str, reply: str):
         phone_number=phone_number,
         direction='outbound',
         body=reply,
+        twilio_sid=twilio_sid,
         message_data={'role': 'assistant', 'content': reply},
         sent_at=datetime.utcnow(),
     )

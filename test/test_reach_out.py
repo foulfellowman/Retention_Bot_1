@@ -16,6 +16,7 @@ class DummyTwilio:
         if to_phone in self.fail_numbers:
             raise RuntimeError("twilio failure")
         self.sent.append((to_phone, message))
+        return f"SM{len(self.sent):05d}"
 
 
 class DummyGPT:
@@ -26,8 +27,8 @@ class DummyGPT:
     def set_context(self, phone, value):
         self.context[phone] = list(value)
 
-    def insert_with_db_instance(self, db_instance, body, user):
-        self.logged.append((db_instance, body, user.phone_number))
+    def insert_with_db_instance(self, db_instance, body, user, twilio_sid=None):
+        self.logged.append((db_instance, body, user.phone_number, twilio_sid))
 
 
 class DummyUserContext:
