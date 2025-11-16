@@ -35,9 +35,12 @@
       </td>
       <td>
         <button class="edit-btn"
+                aria-label="Edit conversation"
                 hx-get="/conversations/{{ c.phone_number }}/edit"
                 hx-target="#modal-container"
-                hx-swap="innerHTML">edit</button>
+                hx-swap="innerHTML">
+          <img src="{{ url_for('static', filename='edit.png') }}" alt="" aria-hidden="true">
+        </button>
       </td>
     </tr>
 {% endfor %}

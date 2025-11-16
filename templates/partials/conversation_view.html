@@ -10,7 +10,7 @@
       <div class="message {{ 'left' if m.role == 'user' else 'right' }}">
         <div class="bubble {{ 'user' if m.role == 'user' else 'bot' }}">
           {{ m.content }}<br>
-          <small>{{ m.sent_at }}</small>
+          <small>{{ m.sent_at|friendly_timestamp }}</small>
         </div>
       </div>
     {% endfor %}

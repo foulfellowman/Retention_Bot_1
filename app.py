@@ -43,6 +43,25 @@ def create_app() -> Flask:
     app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret")
     csrf.init_app(app)
 
+    def format_conversation_timestamp(value):
+        """Render timestamps like 'Jul 14, 3:24 PM'."""
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            try:
+                value = datetime.fromisoformat(value)
+            except ValueError:
+                return value
+        if isinstance(value, datetime):
+            if value.tzinfo is not None:
+                value = value.astimezone()
+            month = value.strftime("%b")
+            time_str = value.strftime("%I:%M %p").lstrip("0")
+            return f"{month} {value.day}, {time_str}"
+        return str(value)
+
+    app.jinja_env.filters["friendly_timestamp"] = format_conversation_timestamp
+
     app.logger.handlers = []
     for handler in root_logger.handlers:
         app.logger.addHandler(handler)
