@@ -9,6 +9,9 @@
         document.getElementById('modal-container').innerHTML = "";
       }
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
@@ -81,7 +84,7 @@
                                         hx-swap="innerHTML"
                                         hx-include="#search, #conversations-state"
                                         hx-on="click: handleSortClick(event, 'number')">
-                                    Number
+                                    Phone Number
                                 </button>
                             </th>
                             <th>
@@ -96,7 +99,7 @@
                                     Status
                                 </button>
                             </th>
-                            <th>Edit</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody id="conversations-body">

@@ -1,5 +1,10 @@
+:root {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
 html, body { height: 100%; }
 body {
+  font-family: inherit;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -21,13 +26,16 @@ header, footer { flex: 0 0 auto; }
 
 /* Left panel */
 .conversation-list {
-  flex: 0 0 40%;      /* 40% width, fixed basis */
-  border-right: 1px solid #ccc;
+  flex: 0 0 40%;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  margin-left: 12px; /* optional gap between panels */
+  border: 1px solid #ccc;      /* full box border */
+  border-radius: 6px;          /* optional */
+  background: #fff;            /* optional, but makes the box stand out */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* optional */
 }
-
 .search-bar {
     padding: 10px;
     display: flex;
@@ -49,6 +57,59 @@ th, td {
     text-align: left;
     padding: 8px;
     border-bottom: 1px solid #eee;
+}
+
+.conversation-list table {
+  font-family: 'Space Mono', 'Inter', 'Segoe UI', system-ui, monospace;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+}
+
+.conversation-list table button,
+.conversation-list table .status-badge {
+  font-family: inherit;
+}
+
+.conversation-list table th,
+.conversation-list table td {
+  border-bottom: none;
+}
+
+.conversation-list thead th {
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #667085;
+  border-bottom: 2px solid #dfe3eb;
+}
+
+.conversation-list tbody tr {
+  background-color: #ffffff;
+  border: 1px solid #d9deea;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+}
+
+.conversation-list tbody tr:hover {
+  border-color: #a7b5ff;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+  transform: translateY(-1px);
+}
+
+.conversation-list tbody td {
+  padding: 10px 8px;
+}
+
+.conversation-list tbody tr td:first-child {
+  border-top-left-radius: 10px;
+  border-bottom-left-radius: 10px;
+}
+
+.conversation-list tbody tr td:last-child {
+  border-top-right-radius: 10px;
+  border-bottom-right-radius: 10px;
 }
 
 .list-scroll {
@@ -120,11 +181,17 @@ footer {
     padding: 4px 8px;
 }
 
+.conversation-list tbody tr.active {
+  background-color: #edf2ff; /* soft blue highlight */
+  border-color: #667eea;
+  box-shadow: 0 0 0 1px rgba(102, 126, 234, 0.35), 0 6px 14px rgba(102, 126, 234, 0.25);
+}
+
 tr.active {
-  background-color: #f0f0f0; /* light gray */
+  background-color: #f0f0f0; /* fallback for other tables */
 }
 active {
-  background-color: #f0f0f0; /* light gray */
+  background-color: #f0f0f0; /* fallback element */
 }
  #modal-backdrop {
 position: fixed;
