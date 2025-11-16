@@ -461,7 +461,14 @@ class DB:
         if limit is None or limit <= 0:
             raise ValueError("limit must be a positive integer")
 
-        excluded = set((exclude_states or ())).union({"done"}) if exclude_states else {"done"}
+        outbound_exists = (
+            select(1)
+            .where(
+                Message.phone_number == Contact.phone_number,
+                Message.direction == "outbound",
+            )
+            .exists()
+        )
 
         stmt = (
             select(Contact)
@@ -470,6 +477,7 @@ class DB:
             .where(
                 Contact.phone_number.isnot(None),
                 Contact.phone_number != "",
+                ~outbound_exists,
             )
             .order_by(Contact.last_name.is_(None), Contact.last_name, Contact.first_name)
         )
@@ -485,21 +493,7 @@ class DB:
             if len(rows) >= limit:
                 break
 
-        if not excluded:
-            return rows
-
-        filtered: List[Contact] = []
-        for contact in rows:
-            state_name = None
-            phone = getattr(contact, "fsm_state", None)
-            if phone and getattr(phone, "statename", None):
-                state_name = phone.statename
-            elif contact.phone and contact.phone.fsm_state:
-                state_name = contact.phone.fsm_state.statename
-            if state_name and state_name.lower() in excluded:
-                continue
-            filtered.append(contact)
-        return filtered
+        return rows
 
 
 def ensure_test_run_tables(db_connection: "DB") -> None:
