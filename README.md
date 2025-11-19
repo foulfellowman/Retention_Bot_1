@@ -1,5 +1,7 @@
 # Retention Bot
 
+##### Created and Owned by Cost Design & Technologies LLC
+
 ## Overview
 Retention Bot is a SMS assistant for small businesses to retain and support existing customers. Every message is tied to an existing customer record and service history. There is no promotional or affiliate traffic—only service-related follow-ups, scheduling help, or status checks for people who already shared their mobile number with the company.
 
